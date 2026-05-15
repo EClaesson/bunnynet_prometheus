@@ -3,33 +3,33 @@ name = "bunnynet_prometheus"
 version = "0.1.0"
 edition = "2024"
 authors = ["Emanuel Claesson <emanuel@eclaesson.com>"]
-description = "Expose bunny.net statistics as a scrapable prometheus endpoint."
+description = "Expose Bunny.net statistics as a scrapable prometheus endpoint."
 repository = "https://github.com/EClaesson/bunnynet_prometheus"
 license = "MIT"
 keywords = ["bunny", "statistics", "prometheus", "metrics"]
 categories = ["development-tools"]
 
 [lints.rust]
-rust_2018_idioms = { level = "warn", priority = -1 }
 future_incompatible = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
 nonstandard_style = { level = "warn", priority = -1 }
-unused_must_use = "deny"
 unsafe_code = "forbid"
+unused_must_use = "deny"
 
 [lints.clippy]
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
-unwrap_used = "warn"
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+dbg_macro = "warn"
 expect_used = "warn"
+multiple_crate_versions = "allow"
 panic = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+ptr_arg = "warn"
 todo = "warn"
 unimplemented = "warn"
-dbg_macro = "warn"
-print_stdout = "warn"
-print_stderr = "warn"
-ptr_arg = "warn"
-multiple_crate_versions = "allow"
+unwrap_used = "warn"
 
 [profile.release]
 lto = true
@@ -41,22 +41,22 @@ panic = "abort"
 
 [dependencies]
 anyhow = { version = "1.0.102" }
-tracing = { version = "0.1.44" }
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.149" }
-reqwest = { version = "0.13.3", features = ["json"] }
-reqwest-middleware = { version = "0.5.1" }
-reqwest-retry = { version = "0.9.1" }
+chrono = { version = "0.4.44", features = ["serde"] }
+clap = { version = "4.6.1", features = ["derive", "cargo"] }
 metrics = { version = "0.24.5" }
 metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = [
     "http-listener",
 ] }
+reqwest = { version = "0.13.3", features = ["json"] }
+reqwest-middleware = { version = "0.5.1" }
+reqwest-retry = { version = "0.9.1" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149" }
+shellexpand = { version = "3.1.2" }
 tokio = { version = "1.52.3", features = [
     "rt-multi-thread",
     "macros",
     "signal",
 ] }
-clap = { version = "4.6.1", features = ["derive", "cargo"] }
-chrono = { version = "0.4.44", features = ["serde"] }
-shellexpand = { version = "3.1.2" }
+tracing = { version = "0.1.44" }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
