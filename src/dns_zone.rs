@@ -1,174 +1,70 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use anyhow::{Context, Result, bail};
+use anyhow::Context;
 use chrono::NaiveDate;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
-use tracing::debug;
 
-use crate::{
-    bunny::{ApiClient, DnsZone, QueriesByTypeChart},
-    state::{PollFuture, State},
+use crate::bunny::{ApiClient, DnsZone, QueriesByTypeChart};
+use crate::zone_stats::{
+    DayData, FetchFuture, ZoneStatsState, ZoneType, f64_to_u64, find_chart_value_for_date,
 };
 
-type DnsZoneStateMap = HashMap<u64, DnsZoneState>;
+pub type DnsZoneStatsState = ZoneStatsState<DnsZoneKind>;
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct DnsZoneStatsState {
-    zones: DnsZoneStateMap,
-}
+pub struct DnsZoneKind;
 
-impl DnsZoneStatsState {
-    async fn backfill_until(
-        state: &mut DnsZoneState,
-        zone: &DnsZone,
-        until_date: NaiveDate,
-        client: &ApiClient,
-    ) -> Result<()> {
-        if let Some(last_complete_day) = state.last_complete_day {
-            let mut date_cursor = last_complete_day + chrono::TimeDelta::days(1);
-            while date_cursor <= until_date {
-                debug!(date = %date_cursor, zone = %zone, "Backfilling DNS zone stats");
-                let day_data = Self::get_single_day_state(zone, date_cursor, client).await?;
+impl ZoneType for DnsZoneKind {
+    type Entity = DnsZone;
+    type DayData = DnsDayData;
 
-                state.last_complete_day_state.normal_queries_served +=
-                    day_data.normal_queries_served;
-                state.last_complete_day_state.smart_queries_served += day_data.smart_queries_served;
+    const LOG_LABEL: &'static str = "DNS zone";
 
-                let queries_by_type = &mut state.last_complete_day_state.queries_served_per_type;
-                for (type_str, value) in &day_data.queries_served_per_type {
-                    *queries_by_type.entry(type_str.clone()).or_default() += value;
-                }
-
-                state.last_complete_day = Some(date_cursor);
-                date_cursor += chrono::TimeDelta::days(1);
-            }
-        }
-
-        state.domain.clone_from(&zone.domain);
-
-        Ok(())
+    fn entity_id(entity: &DnsZone) -> u64 {
+        entity.id
     }
 
-    async fn refresh_current_day(
-        state: &mut DnsZoneState,
-        zone: &DnsZone,
-        today_date: NaiveDate,
-        client: &ApiClient,
-    ) -> Result<()> {
-        debug!(date = %today_date, zone = %zone, "Refreshing DNS zone stats for current day");
-        let new_state = Self::get_single_day_state(zone, today_date, client).await?;
-
-        state.current_day_state.normal_queries_served = state
-            .current_day_state
-            .normal_queries_served
-            .max(new_state.normal_queries_served);
-        state.current_day_state.smart_queries_served = state
-            .current_day_state
-            .smart_queries_served
-            .max(new_state.smart_queries_served);
-
-        let queries_by_type = &mut state.current_day_state.queries_served_per_type;
-        for (type_str, value) in &new_state.queries_served_per_type {
-            let entry = queries_by_type.entry(type_str.clone()).or_default();
-            *entry = (*entry).max(*value);
-        }
-
-        state.domain.clone_from(&zone.domain);
-
-        Ok(())
+    fn entity_label(entity: &DnsZone) -> &str {
+        &entity.domain
     }
 
-    async fn get_single_day_state(
-        zone: &DnsZone,
+    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<DnsZone>> {
+        Box::pin(async move { client.list_dns_zones().await })
+    }
+
+    fn fetch_day<'a>(
+        client: &'a ApiClient,
+        zone: &'a DnsZone,
         date: NaiveDate,
-        client: &ApiClient,
-    ) -> Result<StateData> {
-        let mut state = StateData::default();
-        let date_str = date.format("%Y-%m-%d").to_string();
-
-        let zone_stats = client.get_dns_zone_stats(zone.id, date, date).await?;
-
-        state.normal_queries_served = f64_to_u64(
-            find_chart_value_for_date(&zone_stats.normal_queries_served_chart, &date_str)
-                .context("Normal queries served")?,
-        );
-
-        state.smart_queries_served = f64_to_u64(
-            find_chart_value_for_date(&zone_stats.smart_queries_served_chart, &date_str)
-                .context("Smart queries served")?,
-        );
-
-        let mut queries_by_type = QueriesByTypeChart::new();
-
-        for (type_num, value) in &zone_stats.queries_by_type_chart {
-            let type_str = get_dns_type_name(type_num);
-            queries_by_type.insert(type_str.to_string(), *value);
-        }
-
-        state.queries_served_per_type = queries_by_type;
-
-        Ok(state)
-    }
-
-    fn update_metrics(&self) {
-        for (zone_id, state) in &self.zones {
-            state.emit_metrics(*zone_id);
-        }
-    }
-}
-
-impl State for DnsZoneStatsState {
-    fn poll<'a>(&'a mut self, client: &'a ApiClient) -> PollFuture<'a> {
+    ) -> FetchFuture<'a, DnsDayData> {
         Box::pin(async move {
-            debug!("Polling DNS zone stats");
-            let today = chrono::Utc::now().date_naive();
-            let yesterday = today - chrono::Days::new(1);
+            let stats = client.get_dns_zone_stats(zone.id, date, date).await?;
 
-            let zones = client.list_dns_zones().await?;
-            for zone in &zones {
-                let state = self.zones.entry(zone.id).or_default();
+            let normal_queries_served = f64_to_u64(
+                find_chart_value_for_date(&stats.normal_queries_served_chart, date)
+                    .context("Normal queries served")?,
+            );
+            let smart_queries_served = f64_to_u64(
+                find_chart_value_for_date(&stats.smart_queries_served_chart, date)
+                    .context("Smart queries served")?,
+            );
 
-                if let Some(last_complete_day) = state.last_complete_day
-                    && last_complete_day < yesterday
-                {
-                    Self::backfill_until(state, zone, yesterday, client).await?;
-                    state.current_day_state = StateData::default();
-                } else {
-                    state.last_complete_day = Some(yesterday);
-                }
-
-                Self::refresh_current_day(state, zone, today, client).await?;
+            let mut queries_served_per_type = QueriesByTypeChart::new();
+            for (type_num, value) in &stats.queries_by_type_chart {
+                queries_served_per_type.insert(dns_type_name(type_num).to_string(), *value);
             }
 
-            self.update_metrics();
-
-            Ok(())
+            Ok(DnsDayData {
+                normal_queries_served,
+                smart_queries_served,
+                queries_served_per_type,
+            })
         })
     }
 
-    fn serialize(&self) -> Result<String> {
-        Ok(serde_json::to_string(self)?)
-    }
-}
-
-#[derive(Serialize, Deserialize, Default)]
-struct DnsZoneState {
-    domain: String,
-    last_complete_day: Option<chrono::NaiveDate>,
-    last_complete_day_state: StateData,
-    current_day_state: StateData,
-}
-
-impl DnsZoneState {
-    fn emit_metrics(&self, zone_id: u64) {
-        let zone_id_str = zone_id.to_string();
-        let last = &self.last_complete_day_state;
-        let current = &self.current_day_state;
-        let labels = [
-            ("zone_id", zone_id_str.clone()),
-            ("domain", self.domain.clone()),
-        ];
+    fn emit_metrics(id: u64, domain: &str, last: &DnsDayData, current: &DnsDayData) {
+        let id_str = id.to_string();
+        let labels = [("zone_id", id_str.clone()), ("domain", domain.to_string())];
 
         counter!("bunnynet.dns_zone.normal_queries", &labels)
             .absolute(last.normal_queries_served + current.normal_queries_served);
@@ -195,8 +91,8 @@ impl DnsZoneState {
 
             counter!(
                 "bunnynet.dns_zone.queries_by_type",
-                "zone_id" => zone_id_str.clone(),
-                "domain" => self.domain.clone(),
+                "zone_id" => id_str.clone(),
+                "domain" => domain.to_string(),
                 "type" => type_str.clone(),
             )
             .absolute(total);
@@ -205,32 +101,35 @@ impl DnsZoneState {
 }
 
 #[derive(Serialize, Deserialize, Default)]
-struct StateData {
+pub struct DnsDayData {
     pub normal_queries_served: u64,
     pub smart_queries_served: u64,
     pub queries_served_per_type: QueriesByTypeChart,
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-const fn f64_to_u64(v: f64) -> u64 {
-    if v < 0.0 { 0 } else { v as u64 }
-}
+impl DayData for DnsDayData {
+    fn accumulate(&mut self, day: Self) {
+        self.normal_queries_served += day.normal_queries_served;
+        self.smart_queries_served += day.smart_queries_served;
+        for (type_str, value) in day.queries_served_per_type {
+            *self.queries_served_per_type.entry(type_str).or_default() += value;
+        }
+    }
 
-fn find_chart_value_for_date<V: Copy>(chart: &HashMap<String, V>, date_prefix: &str) -> Result<V> {
-    let mut iter = chart.iter();
-    match (iter.next(), iter.next()) {
-        (Some((key, value)), None) if key.starts_with(date_prefix) => Ok(*value),
-        _ => bail!(
-            "Expected exactly one entry starting with {date_prefix}, got {} entries",
-            chart.len()
-        ),
+    fn merge_latest(&mut self, snap: Self) {
+        self.normal_queries_served = self.normal_queries_served.max(snap.normal_queries_served);
+        self.smart_queries_served = self.smart_queries_served.max(snap.smart_queries_served);
+        for (type_str, value) in snap.queries_served_per_type {
+            let entry = self.queries_served_per_type.entry(type_str).or_default();
+            *entry = (*entry).max(value);
+        }
     }
 }
 
 // DNS resource record types
 // https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4
 #[allow(clippy::too_many_lines)]
-fn get_dns_type_name(type_num: &str) -> &str {
+fn dns_type_name(type_num: &str) -> &str {
     match type_num {
         "1" => "A",
         "2" => "NS",

@@ -2,7 +2,9 @@ mod bunny;
 mod cli;
 mod dns_zone;
 mod state;
+mod storage_zone;
 mod target;
+mod zone_stats;
 
 use std::path::Path;
 use std::time::Duration;

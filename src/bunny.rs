@@ -101,6 +101,27 @@ impl ApiClient {
             .map_err(Into::into)
     }
 
+    async fn get_entity_statistics<I, T>(
+        &self,
+        url_path: &str,
+        id: I,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<T>
+    where
+        I: ToString + Display + tracing::Value,
+        T: DeserializeOwned,
+    {
+        let from_date = from_date.format(DATE_FORMAT).to_string();
+        let to_date = to_date.format(DATE_FORMAT).to_string();
+        debug!(url_path, id, from_date, to_date, "Fetching statistics");
+
+        self.get_single::<T>(&format!(
+            "{url_path}/{id}/statistics?dateFrom={from_date}&dateTo={to_date}"
+        ))
+        .await
+    }
+
     pub async fn list_dns_zones(&self) -> Result<Vec<DnsZone>> {
         debug!("Fetching list of DNS zones");
         self.get_all_items::<DnsZone>("dnszone").await
@@ -112,14 +133,23 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<DnsZoneStats> {
-        let from_date = from_date.format(DATE_FORMAT);
-        let to_date = to_date.format(DATE_FORMAT);
+        self.get_entity_statistics("dnszone", zone_id, from_date, to_date)
+            .await
+    }
 
-        debug!(zone_id, "Fetching DNS zone stats");
-        self.get_single::<DnsZoneStats>(&format!(
-            "dnszone/{zone_id}/statistics?dateFrom={from_date}&dateTo={to_date}"
-        ))
-        .await
+    pub async fn list_storage_zones(&self) -> Result<Vec<StorageZone>> {
+        debug!("Fetching list of storage zones");
+        self.get_all_items::<StorageZone>("storagezone").await
+    }
+
+    pub async fn get_storage_zone_stats(
+        &self,
+        zone_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<StorageZoneStats> {
+        self.get_entity_statistics("storagezone", zone_id, from_date, to_date)
+            .await
     }
 }
 
@@ -153,4 +183,27 @@ pub struct DnsZoneStats {
     pub normal_queries_served_chart: QueriesServedChart,
     pub smart_queries_served_chart: QueriesServedChart,
     pub queries_by_type_chart: QueriesByTypeChart,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct StorageZone {
+    pub id: u64,
+    pub name: String,
+}
+
+impl Display for StorageZone {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.name, self.id)
+    }
+}
+
+pub type StorageUsedChart = HashMap<String, u64>;
+pub type FileCountChart = HashMap<String, u64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct StorageZoneStats {
+    pub storage_used_chart: StorageUsedChart,
+    pub file_count_chart: FileCountChart,
 }

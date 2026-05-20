@@ -1,0 +1,164 @@
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::future::Future;
+use std::pin::Pin;
+
+use anyhow::{Result, bail};
+use chrono::NaiveDate;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use tracing::debug;
+
+use crate::bunny::ApiClient;
+use crate::state::{PollFuture, State};
+
+const DATE_FORMAT: &str = "%Y-%m-%d";
+
+pub type FetchFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
+
+pub trait DayData: Default + Serialize + DeserializeOwned + Send {
+    fn accumulate(&mut self, day: Self);
+    fn merge_latest(&mut self, snap: Self);
+}
+
+pub trait ZoneType: Sized + Send + Sync + 'static {
+    type Entity: Display + Send + Sync;
+    type DayData: DayData;
+
+    const LOG_LABEL: &'static str;
+
+    fn entity_id(entity: &Self::Entity) -> u64;
+    fn entity_label(entity: &Self::Entity) -> &str;
+
+    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<Self::Entity>>;
+    fn fetch_day<'a>(
+        client: &'a ApiClient,
+        entity: &'a Self::Entity,
+        date: NaiveDate,
+    ) -> FetchFuture<'a, Self::DayData>;
+
+    fn emit_metrics(id: u64, label: &str, last: &Self::DayData, current: &Self::DayData);
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "Z::DayData: Serialize",
+    deserialize = "Z::DayData: Deserialize<'de>"
+))]
+pub struct ZoneStatsState<Z: ZoneType> {
+    zones: HashMap<u64, ZoneEntry<Z>>,
+}
+
+impl<Z: ZoneType> Default for ZoneStatsState<Z> {
+    fn default() -> Self {
+        Self {
+            zones: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "Z::DayData: Serialize",
+    deserialize = "Z::DayData: Deserialize<'de>"
+))]
+struct ZoneEntry<Z: ZoneType> {
+    #[serde(skip)]
+    label: String,
+    last_complete_day: Option<NaiveDate>,
+    last_complete_day_state: Z::DayData,
+    current_day_state: Z::DayData,
+}
+
+impl<Z: ZoneType> Default for ZoneEntry<Z> {
+    fn default() -> Self {
+        Self {
+            label: String::new(),
+            last_complete_day: None,
+            last_complete_day_state: Z::DayData::default(),
+            current_day_state: Z::DayData::default(),
+        }
+    }
+}
+
+impl<Z: ZoneType> State for ZoneStatsState<Z> {
+    fn poll<'a>(&'a mut self, client: &'a ApiClient) -> PollFuture<'a> {
+        Box::pin(async move {
+            debug!(kind = Z::LOG_LABEL, "Polling zone stats");
+            let today = chrono::Utc::now().date_naive();
+            let yesterday = today - chrono::Days::new(1);
+
+            let entities = Z::list(client).await?;
+
+            for entity in &entities {
+                let id = Z::entity_id(entity);
+                let entry = self.zones.entry(id).or_default();
+                entry.label = Z::entity_label(entity).to_string();
+
+                if let Some(last) = entry.last_complete_day
+                    && last < yesterday
+                {
+                    let mut cursor = last + chrono::TimeDelta::days(1);
+                    while cursor <= yesterday {
+                        debug!(
+                            kind = Z::LOG_LABEL,
+                            entity = %entity,
+                            date = %cursor,
+                            "Backfilling zone stats",
+                        );
+                        let day = Z::fetch_day(client, entity, cursor).await?;
+                        entry.last_complete_day_state.accumulate(day);
+                        entry.last_complete_day = Some(cursor);
+                        cursor += chrono::TimeDelta::days(1);
+                    }
+                    entry.current_day_state = Z::DayData::default();
+                } else {
+                    entry.last_complete_day = Some(yesterday);
+                }
+
+                debug!(
+                    kind = Z::LOG_LABEL,
+                    entity = %entity,
+                    date = %today,
+                    "Refreshing current-day zone stats",
+                );
+                let snap = Z::fetch_day(client, entity, today).await?;
+                entry.current_day_state.merge_latest(snap);
+            }
+
+            for (id, entry) in &self.zones {
+                Z::emit_metrics(
+                    *id,
+                    &entry.label,
+                    &entry.last_complete_day_state,
+                    &entry.current_day_state,
+                );
+            }
+
+            Ok(())
+        })
+    }
+
+    fn serialize(&self) -> Result<String> {
+        Ok(serde_json::to_string(self)?)
+    }
+}
+
+pub fn find_chart_value_for_date<V: Copy>(
+    chart: &HashMap<String, V>,
+    date: NaiveDate,
+) -> Result<V> {
+    let date_str = date.format(DATE_FORMAT).to_string();
+    let mut iter = chart.iter();
+    match (iter.next(), iter.next()) {
+        (Some((key, value)), None) if key.starts_with(&date_str) => Ok(*value),
+        _ => bail!(
+            "Expected exactly one entry starting with {date_str}, got {} entries",
+            chart.len()
+        ),
+    }
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub const fn f64_to_u64(v: f64) -> u64 {
+    if v < 0.0 { 0 } else { v as u64 }
+}
