@@ -198,6 +198,22 @@ impl ApiClient {
         self.get_all_items::<PullZone>("pullzone").await
     }
 
+    pub async fn get_pull_zone_stats(
+        &self,
+        zone_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<PullZoneStats> {
+        let from_date = from_date.format(DATE_FORMAT).to_string();
+        let to_date = to_date.format(DATE_FORMAT).to_string();
+        debug!(zone_id, from_date, to_date, "Fetching pull zone statistics");
+
+        self.get_single::<PullZoneStats>(&format!(
+            "statistics?dateFrom={from_date}&dateTo={to_date}&pullZone={zone_id}&loadErrors=true&loadOriginResponseTimes=true&loadOriginTraffic=true&loadRequestsServed=true&loadBandwidthUsed=true&loadOriginShieldBandwidth=true&loadGeographicTrafficDistribution=true"
+        ))
+        .await
+    }
+
     pub async fn get_pull_zone_optimizer_stats(
         &self,
         zone_id: u64,
@@ -379,4 +395,38 @@ pub type RequestsSavedChart = HashMap<String, u64>;
 pub struct PullZoneSafeHopStats {
     pub requests_retried_chart: RequestsRetriedChart,
     pub requests_saved_chart: RequestsSavedChart,
+}
+
+pub type OriginResponseTimeChart = HashMap<String, f64>;
+pub type CacheHitRateChart = HashMap<String, f64>;
+pub type BandwidthUsedChart = HashMap<String, u64>;
+pub type BandwidthCachedChart = HashMap<String, u64>;
+pub type RequestsServedChart = HashMap<String, u64>;
+pub type PullRequestsPulledChart = HashMap<String, u64>;
+pub type OriginShieldBandwidthUsedChart = HashMap<String, u64>;
+pub type OriginShieldInternalBandwidthUsedChart = HashMap<String, u64>;
+pub type OriginTrafficChart = HashMap<String, u64>;
+pub type GeoTrafficDistribution = HashMap<String, u64>;
+pub type ErrorChart = HashMap<String, u64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[allow(clippy::struct_field_names)]
+pub struct PullZoneStats {
+    pub origin_response_time_chart: OriginResponseTimeChart,
+    pub cache_hit_rate_chart: CacheHitRateChart,
+    pub bandwidth_used_chart: BandwidthUsedChart,
+    pub bandwidth_cached_chart: BandwidthCachedChart,
+    pub requests_served_chart: RequestsServedChart,
+    pub pull_requests_pulled_chart: PullRequestsPulledChart,
+    pub origin_shield_bandwidth_used_chart: OriginShieldBandwidthUsedChart,
+    pub origin_shield_internal_bandwidth_used_chart: OriginShieldInternalBandwidthUsedChart,
+    pub origin_traffic_chart: OriginTrafficChart,
+    pub geo_traffic_distribution: GeoTrafficDistribution,
+    #[serde(rename = "Error3xxChart")]
+    pub errors_3xx_chart: ErrorChart,
+    #[serde(rename = "Error4xxChart")]
+    pub errors_4xx_chart: ErrorChart,
+    #[serde(rename = "Error5xxChart")]
+    pub errors_5xx_chart: ErrorChart,
 }

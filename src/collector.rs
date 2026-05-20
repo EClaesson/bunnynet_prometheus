@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::ValueEnum;
 
 use crate::dns_zone::DnsZoneStatsState;
+use crate::pull_zone::PullZoneStatsState;
 use crate::pull_zone_optimizer::PullZoneOptimizerStatsState;
 use crate::pull_zone_origin_shield_queue::PullZoneOriginShieldQueueStatsState;
 use crate::pull_zone_safehop::PullZoneSafeHopStatsState;
@@ -19,6 +20,7 @@ pub enum Collector {
     StorageZone,
     VideoLibraryTranscribing,
     VideoLibraryDrm,
+    PullZone,
     PullZoneOptimizer,
     PullZoneOriginShieldQueue,
     PullZoneSafehop,
@@ -36,6 +38,7 @@ impl Collector {
             Self::StorageZone => "storage_zone",
             Self::VideoLibraryTranscribing => "video_library_transcribing",
             Self::VideoLibraryDrm => "video_library_drm",
+            Self::PullZone => "pull_zone",
             Self::PullZoneOptimizer => "pull_zone_optimizer",
             Self::PullZoneOriginShieldQueue => "pull_zone_origin_shield_queue",
             Self::PullZoneSafehop => "pull_zone_safehop",
@@ -63,6 +66,10 @@ impl Collector {
                     &self.state_file_name(),
                 )?))
             }
+            Self::PullZone => Ok(Box::new(read_state_from_file::<PullZoneStatsState>(
+                state_dir,
+                &self.state_file_name(),
+            )?)),
             Self::PullZoneOptimizer => Ok(Box::new(read_state_from_file::<
                 PullZoneOptimizerStatsState,
             >(
