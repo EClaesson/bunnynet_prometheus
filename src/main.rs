@@ -1,6 +1,7 @@
 mod bunny;
 mod cli;
 mod dns_zone;
+mod pull_zone_optimizer;
 mod state;
 mod storage_zone;
 mod target;

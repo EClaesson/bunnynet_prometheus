@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::ValueEnum;
 
 use crate::dns_zone::DnsZoneStatsState;
+use crate::pull_zone_optimizer::PullZoneOptimizerStatsState;
 use crate::state::{State, read_state_from_file, write_state_to_file};
 use crate::storage_zone::StorageZoneStatsState;
 use crate::video_library_drm::VideoLibraryDrmStatsState;
@@ -16,6 +17,7 @@ pub enum Target {
     StorageZone,
     VideoLibraryTranscribing,
     VideoLibraryDrm,
+    PullZoneOptimizer,
 }
 
 impl Target {
@@ -30,6 +32,7 @@ impl Target {
             Self::StorageZone => "storage_zone",
             Self::VideoLibraryTranscribing => "video_library_transcribing",
             Self::VideoLibraryDrm => "video_library_drm",
+            Self::PullZoneOptimizer => "pull_zone_optimizer",
         }
     }
 
@@ -48,8 +51,14 @@ impl Target {
             >(
                 state_dir, &self.state_file_name()
             )?)),
-            Self::VideoLibraryDrm => Ok(Box::new(read_state_from_file::<
-                VideoLibraryDrmStatsState,
+            Self::VideoLibraryDrm => {
+                Ok(Box::new(read_state_from_file::<VideoLibraryDrmStatsState>(
+                    state_dir,
+                    &self.state_file_name(),
+                )?))
+            }
+            Self::PullZoneOptimizer => Ok(Box::new(read_state_from_file::<
+                PullZoneOptimizerStatsState,
             >(
                 state_dir, &self.state_file_name()
             )?)),

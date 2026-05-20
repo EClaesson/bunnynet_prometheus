@@ -187,6 +187,21 @@ impl ApiClient {
         self.get_entity_statistics("videolibrary", library_id, Some("drm"), from_date, to_date)
             .await
     }
+
+    pub async fn list_pull_zones(&self) -> Result<Vec<PullZone>> {
+        debug!("Fetching list of pull zones");
+        self.get_all_items::<PullZone>("pullzone").await
+    }
+
+    pub async fn get_pull_zone_optimizer_stats(
+        &self,
+        zone_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<PullZoneOptimizerStats> {
+        self.get_entity_statistics("pullzone", zone_id, Some("optimizer"), from_date, to_date)
+            .await
+    }
 }
 
 #[derive(Deserialize)]
@@ -271,4 +286,27 @@ pub type LicensesIssuedChart = HashMap<String, f64>;
 #[serde(rename_all = "PascalCase")]
 pub struct VideoLibraryDrmStats {
     pub licenses_issued_chart: LicensesIssuedChart,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct PullZone {
+    pub id: u64,
+    pub name: String,
+}
+
+impl Display for PullZone {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.name, self.id)
+    }
+}
+
+pub type RequestsOptimizedChart = HashMap<String, u64>;
+pub type TrafficSavedChart = HashMap<String, u64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct PullZoneOptimizerStats {
+    pub requests_optimized_chart: RequestsOptimizedChart,
+    pub traffic_saved_chart: TrafficSavedChart,
 }
