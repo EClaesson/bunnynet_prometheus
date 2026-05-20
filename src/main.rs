@@ -4,6 +4,7 @@ mod dns_zone;
 mod entity_stats;
 mod pull_zone_optimizer;
 mod pull_zone_origin_shield_queue;
+mod pull_zone_safehop;
 mod state;
 mod storage_zone;
 mod target;

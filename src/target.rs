@@ -6,6 +6,7 @@ use clap::ValueEnum;
 use crate::dns_zone::DnsZoneStatsState;
 use crate::pull_zone_optimizer::PullZoneOptimizerStatsState;
 use crate::pull_zone_origin_shield_queue::PullZoneOriginShieldQueueStatsState;
+use crate::pull_zone_safehop::PullZoneSafeHopStatsState;
 use crate::state::{State, read_state_from_file, write_state_to_file};
 use crate::storage_zone::StorageZoneStatsState;
 use crate::video_library_drm::VideoLibraryDrmStatsState;
@@ -20,6 +21,7 @@ pub enum Target {
     VideoLibraryDrm,
     PullZoneOptimizer,
     PullZoneOriginShieldQueue,
+    PullZoneSafehop,
 }
 
 impl Target {
@@ -36,6 +38,7 @@ impl Target {
             Self::VideoLibraryDrm => "video_library_drm",
             Self::PullZoneOptimizer => "pull_zone_optimizer",
             Self::PullZoneOriginShieldQueue => "pull_zone_origin_shield_queue",
+            Self::PullZoneSafehop => "pull_zone_safehop",
         }
     }
 
@@ -67,6 +70,11 @@ impl Target {
             )?)),
             Self::PullZoneOriginShieldQueue => Ok(Box::new(read_state_from_file::<
                 PullZoneOriginShieldQueueStatsState,
+            >(
+                state_dir, &self.state_file_name()
+            )?)),
+            Self::PullZoneSafehop => Ok(Box::new(read_state_from_file::<
+                PullZoneSafeHopStatsState,
             >(
                 state_dir, &self.state_file_name()
             )?)),

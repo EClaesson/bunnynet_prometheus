@@ -229,6 +229,22 @@ impl ApiClient {
         )
         .await
     }
+
+    pub async fn get_pull_zone_safehop_stats(
+        &self,
+        zone_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<PullZoneSafeHopStats> {
+        self.get_entity_statistics(
+            "pullzone",
+            zone_id,
+            "safehop/statistics",
+            from_date,
+            to_date,
+        )
+        .await
+    }
 }
 
 #[derive(Deserialize)]
@@ -352,4 +368,15 @@ pub type QueuedRequestsChart = HashMap<String, u64>;
 pub struct PullZoneOriginShieldQueueStats {
     pub concurrent_requests_chart: ConcurrentRequestsChart,
     pub queued_requests_chart: QueuedRequestsChart,
+}
+
+pub type RequestsRetriedChart = HashMap<String, u64>;
+pub type RequestsSavedChart = HashMap<String, u64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[allow(clippy::struct_field_names)]
+pub struct PullZoneSafeHopStats {
+    pub requests_retried_chart: RequestsRetriedChart,
+    pub requests_saved_chart: RequestsSavedChart,
 }

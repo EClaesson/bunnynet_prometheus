@@ -1,0 +1,86 @@
+use anyhow::Context;
+use chrono::NaiveDate;
+use metrics::counter;
+use serde::{Deserialize, Serialize};
+
+use crate::bunny::{ApiClient, PullZone};
+use crate::entity_stats::{
+    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
+};
+
+pub type PullZoneSafeHopStatsState = EntityStatsState<PullZoneSafeHopKind>;
+
+pub struct PullZoneSafeHopKind;
+
+impl EntityType for PullZoneSafeHopKind {
+    type Entity = PullZone;
+    type DayData = PullZoneSafeHopDayData;
+
+    const LOG_LABEL: &'static str = "Pull zone SafeHop";
+
+    fn entity_id(entity: &PullZone) -> u64 {
+        entity.id
+    }
+
+    fn entity_label(entity: &PullZone) -> &str {
+        &entity.name
+    }
+
+    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<PullZone>> {
+        Box::pin(async move { client.list_pull_zones().await })
+    }
+
+    fn fetch_day<'a>(
+        client: &'a ApiClient,
+        zone: &'a PullZone,
+        date: NaiveDate,
+    ) -> FetchFuture<'a, PullZoneSafeHopDayData> {
+        Box::pin(async move {
+            let stats = client
+                .get_pull_zone_safehop_stats(zone.id, date, date)
+                .await?;
+
+            let requests_retried = find_chart_value_for_date(&stats.requests_retried_chart, date)
+                .context("Requests retried")?;
+            let requests_saved = find_chart_value_for_date(&stats.requests_saved_chart, date)
+                .context("Requests saved")?;
+
+            Ok(PullZoneSafeHopDayData {
+                requests_retried,
+                requests_saved,
+            })
+        })
+    }
+
+    fn emit_metrics(
+        id: u64,
+        name: &str,
+        last: &PullZoneSafeHopDayData,
+        current: &PullZoneSafeHopDayData,
+    ) {
+        let labels = [("zone_id", id.to_string()), ("name", name.to_string())];
+
+        counter!("bunnynet.pull_zone_safehop.requests_retried", &labels)
+            .absolute(last.requests_retried + current.requests_retried);
+        counter!("bunnynet.pull_zone_safehop.requests_saved", &labels)
+            .absolute(last.requests_saved + current.requests_saved);
+    }
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct PullZoneSafeHopDayData {
+    pub requests_retried: u64,
+    pub requests_saved: u64,
+}
+
+impl DayData for PullZoneSafeHopDayData {
+    fn accumulate(&mut self, day: Self) {
+        self.requests_retried += day.requests_retried;
+        self.requests_saved += day.requests_saved;
+    }
+
+    fn merge_latest(&mut self, snap: Self) {
+        self.requests_retried = self.requests_retried.max(snap.requests_retried);
+        self.requests_saved = self.requests_saved.max(snap.requests_saved);
+    }
+}
