@@ -14,7 +14,7 @@ use crate::video_library_transcribing::VideoLibraryTranscribingStatsState;
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 #[value(rename_all = "snake_case")]
-pub enum Target {
+pub enum Collector {
     DnsZone,
     StorageZone,
     VideoLibraryTranscribing,
@@ -24,7 +24,7 @@ pub enum Target {
     PullZoneSafehop,
 }
 
-impl Target {
+impl Collector {
     pub fn state_file_name(self) -> String {
         let name = self.name();
         format!("{name}.json")

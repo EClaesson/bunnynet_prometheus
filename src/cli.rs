@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::target::Target;
+use crate::collector::Collector;
 
 fn expand_path(s: &str) -> Result<PathBuf, shellexpand::LookupError<std::env::VarError>> {
     shellexpand::full(s).map(|cow| PathBuf::from(cow.as_ref()))
@@ -74,5 +74,5 @@ pub struct CliArgs {
     pub bind_port: u16,
 
     #[arg(short, long, value_enum, num_args = 1.., required = true, value_delimiter = ',', help="Categories of stats to poll")]
-    pub targets: Vec<Target>,
+    pub collectors: Vec<Collector>,
 }
