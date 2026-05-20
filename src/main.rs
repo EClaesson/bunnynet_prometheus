@@ -1,13 +1,13 @@
 mod bunny;
 mod cli;
 mod dns_zone;
+mod entity_stats;
 mod pull_zone_optimizer;
 mod state;
 mod storage_zone;
 mod target;
 mod video_library_drm;
 mod video_library_transcribing;
-mod zone_stats;
 
 use std::path::Path;
 use std::time::Duration;

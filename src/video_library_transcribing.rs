@@ -4,15 +4,15 @@ use metrics::counter;
 use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, VideoLibrary};
-use crate::zone_stats::{
-    DayData, FetchFuture, ZoneStatsState, ZoneType, f64_to_u64, find_chart_value_for_date,
+use crate::entity_stats::{
+    DayData, EntityStatsState, EntityType, FetchFuture, f64_to_u64, find_chart_value_for_date,
 };
 
-pub type VideoLibraryTranscribingStatsState = ZoneStatsState<VideoLibraryTranscribingKind>;
+pub type VideoLibraryTranscribingStatsState = EntityStatsState<VideoLibraryTranscribingKind>;
 
 pub struct VideoLibraryTranscribingKind;
 
-impl ZoneType for VideoLibraryTranscribingKind {
+impl EntityType for VideoLibraryTranscribingKind {
     type Entity = VideoLibrary;
     type DayData = VideoLibraryTranscribingDayData;
 

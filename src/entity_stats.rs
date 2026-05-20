@@ -20,7 +20,7 @@ pub trait DayData: Default + Serialize + DeserializeOwned + Send {
     fn merge_latest(&mut self, snap: Self);
 }
 
-pub trait ZoneType: Sized + Send + Sync + 'static {
+pub trait EntityType: Sized + Send + Sync + 'static {
     type Entity: Display + Send + Sync;
     type DayData: DayData;
 
@@ -41,58 +41,58 @@ pub trait ZoneType: Sized + Send + Sync + 'static {
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound(
-    serialize = "Z::DayData: Serialize",
-    deserialize = "Z::DayData: Deserialize<'de>"
+    serialize = "E::DayData: Serialize",
+    deserialize = "E::DayData: Deserialize<'de>"
 ))]
-pub struct ZoneStatsState<Z: ZoneType> {
-    zones: HashMap<u64, ZoneEntry<Z>>,
+pub struct EntityStatsState<E: EntityType> {
+    entities: HashMap<u64, EntityEntry<E>>,
 }
 
-impl<Z: ZoneType> Default for ZoneStatsState<Z> {
+impl<E: EntityType> Default for EntityStatsState<E> {
     fn default() -> Self {
         Self {
-            zones: HashMap::new(),
+            entities: HashMap::new(),
         }
     }
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound(
-    serialize = "Z::DayData: Serialize",
-    deserialize = "Z::DayData: Deserialize<'de>"
+    serialize = "E::DayData: Serialize",
+    deserialize = "E::DayData: Deserialize<'de>"
 ))]
-struct ZoneEntry<Z: ZoneType> {
+struct EntityEntry<E: EntityType> {
     #[serde(skip)]
     label: String,
     last_complete_day: Option<NaiveDate>,
-    last_complete_day_state: Z::DayData,
-    current_day_state: Z::DayData,
+    last_complete_day_state: E::DayData,
+    current_day_state: E::DayData,
 }
 
-impl<Z: ZoneType> Default for ZoneEntry<Z> {
+impl<E: EntityType> Default for EntityEntry<E> {
     fn default() -> Self {
         Self {
             label: String::new(),
             last_complete_day: None,
-            last_complete_day_state: Z::DayData::default(),
-            current_day_state: Z::DayData::default(),
+            last_complete_day_state: E::DayData::default(),
+            current_day_state: E::DayData::default(),
         }
     }
 }
 
-impl<Z: ZoneType> State for ZoneStatsState<Z> {
+impl<E: EntityType> State for EntityStatsState<E> {
     fn poll<'a>(&'a mut self, client: &'a ApiClient) -> PollFuture<'a> {
         Box::pin(async move {
-            debug!(kind = Z::LOG_LABEL, "Polling zone stats");
+            debug!(kind = E::LOG_LABEL, "Polling stats");
             let today = chrono::Utc::now().date_naive();
             let yesterday = today - chrono::Days::new(1);
 
-            let entities = Z::list(client).await?;
+            let entities = E::list(client).await?;
 
             for entity in &entities {
-                let id = Z::entity_id(entity);
-                let entry = self.zones.entry(id).or_default();
-                entry.label = Z::entity_label(entity).to_string();
+                let id = E::entity_id(entity);
+                let entry = self.entities.entry(id).or_default();
+                entry.label = E::entity_label(entity).to_string();
 
                 if let Some(last) = entry.last_complete_day
                     && last < yesterday
@@ -100,33 +100,33 @@ impl<Z: ZoneType> State for ZoneStatsState<Z> {
                     let mut cursor = last + chrono::TimeDelta::days(1);
                     while cursor <= yesterday {
                         debug!(
-                            kind = Z::LOG_LABEL,
+                            kind = E::LOG_LABEL,
                             entity = %entity,
                             date = %cursor,
-                            "Backfilling zone stats",
+                            "Backfilling stats",
                         );
-                        let day = Z::fetch_day(client, entity, cursor).await?;
+                        let day = E::fetch_day(client, entity, cursor).await?;
                         entry.last_complete_day_state.accumulate(day);
                         entry.last_complete_day = Some(cursor);
                         cursor += chrono::TimeDelta::days(1);
                     }
-                    entry.current_day_state = Z::DayData::default();
+                    entry.current_day_state = E::DayData::default();
                 } else {
                     entry.last_complete_day = Some(yesterday);
                 }
 
                 debug!(
-                    kind = Z::LOG_LABEL,
+                    kind = E::LOG_LABEL,
                     entity = %entity,
                     date = %today,
-                    "Refreshing current-day zone stats",
+                    "Refreshing current-day stats",
                 );
-                let snap = Z::fetch_day(client, entity, today).await?;
+                let snap = E::fetch_day(client, entity, today).await?;
                 entry.current_day_state.merge_latest(snap);
             }
 
-            for (id, entry) in &self.zones {
-                Z::emit_metrics(
+            for (id, entry) in &self.entities {
+                E::emit_metrics(
                     *id,
                     &entry.label,
                     &entry.last_complete_day_state,

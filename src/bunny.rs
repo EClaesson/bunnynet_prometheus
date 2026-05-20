@@ -303,10 +303,15 @@ impl Display for PullZone {
 
 pub type RequestsOptimizedChart = HashMap<String, u64>;
 pub type TrafficSavedChart = HashMap<String, u64>;
+pub type AverageCompressionChart = HashMap<String, f64>;
+pub type AverageProcessingTimeChart = HashMap<String, f64>;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
+#[allow(clippy::struct_field_names)]
 pub struct PullZoneOptimizerStats {
     pub requests_optimized_chart: RequestsOptimizedChart,
     pub traffic_saved_chart: TrafficSavedChart,
+    pub average_compression_chart: AverageCompressionChart,
+    pub average_processing_time_chart: AverageProcessingTimeChart,
 }

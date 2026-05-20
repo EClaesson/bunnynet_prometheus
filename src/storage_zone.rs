@@ -4,15 +4,15 @@ use metrics::counter;
 use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, StorageZone};
-use crate::zone_stats::{
-    DayData, FetchFuture, ZoneStatsState, ZoneType, find_chart_value_for_date,
+use crate::entity_stats::{
+    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
 };
 
-pub type StorageZoneStatsState = ZoneStatsState<StorageZoneKind>;
+pub type StorageZoneStatsState = EntityStatsState<StorageZoneKind>;
 
 pub struct StorageZoneKind;
 
-impl ZoneType for StorageZoneKind {
+impl EntityType for StorageZoneKind {
     type Entity = StorageZone;
     type DayData = StorageDayData;
 

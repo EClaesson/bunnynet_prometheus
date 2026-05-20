@@ -6,15 +6,15 @@ use metrics::counter;
 use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, DnsZone, QueriesByTypeChart};
-use crate::zone_stats::{
-    DayData, FetchFuture, ZoneStatsState, ZoneType, f64_to_u64, find_chart_value_for_date,
+use crate::entity_stats::{
+    DayData, EntityStatsState, EntityType, FetchFuture, f64_to_u64, find_chart_value_for_date,
 };
 
-pub type DnsZoneStatsState = ZoneStatsState<DnsZoneKind>;
+pub type DnsZoneStatsState = EntityStatsState<DnsZoneKind>;
 
 pub struct DnsZoneKind;
 
-impl ZoneType for DnsZoneKind {
+impl EntityType for DnsZoneKind {
     type Entity = DnsZone;
     type DayData = DnsDayData;
 
