@@ -6,6 +6,7 @@ use clap::ValueEnum;
 use crate::dns_zone::DnsZoneStatsState;
 use crate::state::{State, read_state_from_file, write_state_to_file};
 use crate::storage_zone::StorageZoneStatsState;
+use crate::video_library_drm::VideoLibraryDrmStatsState;
 use crate::video_library_transcribing::VideoLibraryTranscribingStatsState;
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -14,6 +15,7 @@ pub enum Target {
     DnsZone,
     StorageZone,
     VideoLibraryTranscribing,
+    VideoLibraryDrm,
 }
 
 impl Target {
@@ -27,6 +29,7 @@ impl Target {
             Self::DnsZone => "dns_zone",
             Self::StorageZone => "storage_zone",
             Self::VideoLibraryTranscribing => "video_library_transcribing",
+            Self::VideoLibraryDrm => "video_library_drm",
         }
     }
 
@@ -42,6 +45,11 @@ impl Target {
             )?)),
             Self::VideoLibraryTranscribing => Ok(Box::new(read_state_from_file::<
                 VideoLibraryTranscribingStatsState,
+            >(
+                state_dir, &self.state_file_name()
+            )?)),
+            Self::VideoLibraryDrm => Ok(Box::new(read_state_from_file::<
+                VideoLibraryDrmStatsState,
             >(
                 state_dir, &self.state_file_name()
             )?)),

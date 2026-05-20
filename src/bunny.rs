@@ -177,6 +177,16 @@ impl ApiClient {
         )
         .await
     }
+
+    pub async fn get_video_library_drm_stats(
+        &self,
+        library_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<VideoLibraryDrmStats> {
+        self.get_entity_statistics("videolibrary", library_id, Some("drm"), from_date, to_date)
+            .await
+    }
 }
 
 #[derive(Deserialize)]
@@ -253,4 +263,12 @@ pub type TranscriptionSecondsChart = HashMap<String, f64>;
 #[serde(rename_all = "PascalCase")]
 pub struct VideoLibraryTranscribingStats {
     pub transcription_seconds_chart: TranscriptionSecondsChart,
+}
+
+pub type LicensesIssuedChart = HashMap<String, f64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct VideoLibraryDrmStats {
+    pub licenses_issued_chart: LicensesIssuedChart,
 }

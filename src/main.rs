@@ -4,6 +4,7 @@ mod dns_zone;
 mod state;
 mod storage_zone;
 mod target;
+mod video_library_drm;
 mod video_library_transcribing;
 mod zone_stats;
 
