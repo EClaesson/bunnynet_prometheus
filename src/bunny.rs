@@ -105,7 +105,7 @@ impl ApiClient {
         &self,
         url_path: &str,
         id: I,
-        sub_url_path: Option<&str>,
+        stats_path: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<T>
@@ -117,12 +117,11 @@ impl ApiClient {
         let to_date = to_date.format(DATE_FORMAT).to_string();
         debug!(
             url_path,
-            id, sub_url_path, from_date, to_date, "Fetching statistics"
+            id, stats_path, from_date, to_date, "Fetching statistics"
         );
 
-        let sub_path = sub_url_path.map(|s| format!("/{s}")).unwrap_or_default();
         self.get_single::<T>(&format!(
-            "{url_path}/{id}{sub_path}/statistics?dateFrom={from_date}&dateTo={to_date}"
+            "{url_path}/{id}/{stats_path}?dateFrom={from_date}&dateTo={to_date}"
         ))
         .await
     }
@@ -138,7 +137,7 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<DnsZoneStats> {
-        self.get_entity_statistics("dnszone", zone_id, None, from_date, to_date)
+        self.get_entity_statistics("dnszone", zone_id, "statistics", from_date, to_date)
             .await
     }
 
@@ -153,7 +152,7 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<StorageZoneStats> {
-        self.get_entity_statistics("storagezone", zone_id, None, from_date, to_date)
+        self.get_entity_statistics("storagezone", zone_id, "statistics", from_date, to_date)
             .await
     }
 
@@ -171,7 +170,7 @@ impl ApiClient {
         self.get_entity_statistics(
             "videolibrary",
             library_id,
-            Some("transcribing"),
+            "transcribing/statistics",
             from_date,
             to_date,
         )
@@ -184,8 +183,14 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<VideoLibraryDrmStats> {
-        self.get_entity_statistics("videolibrary", library_id, Some("drm"), from_date, to_date)
-            .await
+        self.get_entity_statistics(
+            "videolibrary",
+            library_id,
+            "drm/statistics",
+            from_date,
+            to_date,
+        )
+        .await
     }
 
     pub async fn list_pull_zones(&self) -> Result<Vec<PullZone>> {
@@ -199,8 +204,30 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<PullZoneOptimizerStats> {
-        self.get_entity_statistics("pullzone", zone_id, Some("optimizer"), from_date, to_date)
-            .await
+        self.get_entity_statistics(
+            "pullzone",
+            zone_id,
+            "optimizer/statistics",
+            from_date,
+            to_date,
+        )
+        .await
+    }
+
+    pub async fn get_pull_zone_origin_shield_queue_stats(
+        &self,
+        zone_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<PullZoneOriginShieldQueueStats> {
+        self.get_entity_statistics(
+            "pullzone",
+            zone_id,
+            "originshield/queuestatistics",
+            from_date,
+            to_date,
+        )
+        .await
     }
 }
 
@@ -314,4 +341,15 @@ pub struct PullZoneOptimizerStats {
     pub traffic_saved_chart: TrafficSavedChart,
     pub average_compression_chart: AverageCompressionChart,
     pub average_processing_time_chart: AverageProcessingTimeChart,
+}
+
+pub type ConcurrentRequestsChart = HashMap<String, u64>;
+pub type QueuedRequestsChart = HashMap<String, u64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[allow(clippy::struct_field_names)]
+pub struct PullZoneOriginShieldQueueStats {
+    pub concurrent_requests_chart: ConcurrentRequestsChart,
+    pub queued_requests_chart: QueuedRequestsChart,
 }
