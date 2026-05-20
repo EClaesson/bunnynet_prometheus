@@ -105,6 +105,7 @@ impl ApiClient {
         &self,
         url_path: &str,
         id: I,
+        sub_url_path: Option<&str>,
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<T>
@@ -114,10 +115,14 @@ impl ApiClient {
     {
         let from_date = from_date.format(DATE_FORMAT).to_string();
         let to_date = to_date.format(DATE_FORMAT).to_string();
-        debug!(url_path, id, from_date, to_date, "Fetching statistics");
+        debug!(
+            url_path,
+            id, sub_url_path, from_date, to_date, "Fetching statistics"
+        );
 
+        let sub_path = sub_url_path.map(|s| format!("/{s}")).unwrap_or_default();
         self.get_single::<T>(&format!(
-            "{url_path}/{id}/statistics?dateFrom={from_date}&dateTo={to_date}"
+            "{url_path}/{id}{sub_path}/statistics?dateFrom={from_date}&dateTo={to_date}"
         ))
         .await
     }
@@ -133,7 +138,7 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<DnsZoneStats> {
-        self.get_entity_statistics("dnszone", zone_id, from_date, to_date)
+        self.get_entity_statistics("dnszone", zone_id, None, from_date, to_date)
             .await
     }
 
@@ -148,8 +153,29 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<StorageZoneStats> {
-        self.get_entity_statistics("storagezone", zone_id, from_date, to_date)
+        self.get_entity_statistics("storagezone", zone_id, None, from_date, to_date)
             .await
+    }
+
+    pub async fn list_video_libraries(&self) -> Result<Vec<VideoLibrary>> {
+        debug!("Fetching list of video libraries");
+        self.get_all_items::<VideoLibrary>("videolibrary").await
+    }
+
+    pub async fn get_video_library_transcribing_stats(
+        &self,
+        library_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<VideoLibraryTranscribingStats> {
+        self.get_entity_statistics(
+            "videolibrary",
+            library_id,
+            Some("transcribing"),
+            from_date,
+            to_date,
+        )
+        .await
     }
 }
 
@@ -206,4 +232,25 @@ pub type FileCountChart = HashMap<String, u64>;
 pub struct StorageZoneStats {
     pub storage_used_chart: StorageUsedChart,
     pub file_count_chart: FileCountChart,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct VideoLibrary {
+    pub id: u64,
+    pub name: String,
+}
+
+impl Display for VideoLibrary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.name, self.id)
+    }
+}
+
+pub type TranscriptionSecondsChart = HashMap<String, f64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct VideoLibraryTranscribingStats {
+    pub transcription_seconds_chart: TranscriptionSecondsChart,
 }
