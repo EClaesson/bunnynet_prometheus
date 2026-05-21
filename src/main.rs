@@ -133,7 +133,7 @@ async fn start_poller_loop(
                         any_failure = true;
                     }
 
-                    gauge!(format!("bunnynet.{}.last_update.timestamp_seconds", collector.name())).set(now());
+                    gauge!("bunnynet.last_collector_update.timestamp_seconds", "collector" => collector.name()).set(now());
                 }
 
                 gauge!("bunnynet.last_update_attempt.timestamp_seconds").set(now());
