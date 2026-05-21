@@ -2,6 +2,7 @@ mod bunny;
 mod cli;
 mod collector;
 mod dns_zone;
+mod edge_script;
 mod entity_stats;
 mod pull_zone;
 mod pull_zone_optimizer;

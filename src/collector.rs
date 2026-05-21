@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::ValueEnum;
 
 use crate::dns_zone::DnsZoneStatsState;
+use crate::edge_script::EdgeScriptStatsState;
 use crate::pull_zone::PullZoneStatsState;
 use crate::pull_zone_optimizer::PullZoneOptimizerStatsState;
 use crate::pull_zone_origin_shield_queue::PullZoneOriginShieldQueueStatsState;
@@ -19,6 +20,7 @@ use crate::video_library_transcribing::VideoLibraryTranscribingStatsState;
 #[value(rename_all = "snake_case")]
 pub enum Collector {
     DnsZone,
+    EdgeScript,
     StorageZone,
     VideoLibrary,
     VideoLibraryTranscribing,
@@ -39,6 +41,7 @@ impl Collector {
     pub const fn name(self) -> &'static str {
         match self {
             Self::DnsZone => "dns_zone",
+            Self::EdgeScript => "edge_script",
             Self::StorageZone => "storage_zone",
             Self::VideoLibrary => "video_library",
             Self::VideoLibraryTranscribing => "video_library_transcribing",
@@ -54,6 +57,10 @@ impl Collector {
     pub fn load_state(self, state_dir: &Path) -> Result<Box<dyn State>> {
         match self {
             Self::DnsZone => Ok(Box::new(read_state_from_file::<DnsZoneStatsState>(
+                state_dir,
+                &self.state_file_name(),
+            )?)),
+            Self::EdgeScript => Ok(Box::new(read_state_from_file::<EdgeScriptStatsState>(
                 state_dir,
                 &self.state_file_name(),
             )?)),

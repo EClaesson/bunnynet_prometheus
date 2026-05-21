@@ -387,6 +387,30 @@ impl ApiClient {
         .await
     }
 
+    pub async fn list_edge_scripts(&self) -> Result<Vec<EdgeScript>> {
+        debug!("Fetching list of edge scripts");
+        self.get_all_items::<EdgeScript>(API_BASE_URL, "compute/script", None)
+            .await
+    }
+
+    pub async fn get_edge_script_stats(
+        &self,
+        script_id: u64,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<EdgeScriptStats> {
+        self.get_entity_statistics(
+            API_BASE_URL,
+            "compute/script",
+            script_id,
+            "statistics",
+            from_date,
+            to_date,
+            None,
+        )
+        .await
+    }
+
     pub async fn list_shield_zones(&self) -> Result<Vec<ShieldZone>> {
         debug!("Fetching list of shield zones");
         self.get_all_data_items::<ShieldZone>(API_BASE_URL, "shield/shield-zones", None)
@@ -529,6 +553,32 @@ pub struct VideoLibraryStats {
     pub watch_time_chart: WatchTimeChart,
     pub country_view_counts: CountryViewCounts,
     pub country_watch_time: CountryWatchTime,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct EdgeScript {
+    pub id: u64,
+    pub name: String,
+}
+
+impl Display for EdgeScript {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.name, self.id)
+    }
+}
+
+pub type EdgeScriptRequestsServedChart = HashMap<String, f64>;
+pub type EdgeScriptAverageCpuTimeChart = HashMap<String, f64>;
+pub type EdgeScriptTotalCpuTimeChart = HashMap<String, f64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[allow(clippy::struct_field_names)]
+pub struct EdgeScriptStats {
+    pub requests_served_chart: EdgeScriptRequestsServedChart,
+    pub average_cpu_time_chart: EdgeScriptAverageCpuTimeChart,
+    pub total_cpu_time_chart: EdgeScriptTotalCpuTimeChart,
 }
 
 #[derive(Deserialize)]

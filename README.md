@@ -22,6 +22,14 @@ TODO!
 | _bunnynet.dns_zone.smart_queries_   | Counter | zone_id, domain       |             |
 | _bunnynet.dns_zone.queries_by_type_ | Counter | zone_id, domain, type |             |
 
+### edge_script
+
+| Name                                    | Type    | Tags            | Description |
+| --------------------------------------- | ------- | --------------- | ----------- |
+| _bunnynet.edge_script.requests_served_  | Counter | script_id, name |             |
+| _bunnynet.edge_script.cpu_time_         | Counter | script_id, name |             |
+| _bunnynet.edge_script.average_cpu_time_ | Gauge   | script_id, name |             |
+
 ### storage_zone
 
 | Name                                 | Type    | Tags          | Description |
@@ -31,12 +39,12 @@ TODO!
 
 ### video_library
 
-| Name                                          | Type    | Tags                       | Description |
-| --------------------------------------------- | ------- | -------------------------- | ----------- |
-| _bunnynet.video_library.views_                | Counter | library_id, name           |             |
-| _bunnynet.video_library.watch_time_           | Counter | library_id, name           |             |
-| _bunnynet.video_library.country_views_        | Counter | library_id, name, country  |             |
-| _bunnynet.video_library.country_watch_time_   | Counter | library_id, name, country  |             |
+| Name                                        | Type    | Tags                      | Description |
+| ------------------------------------------- | ------- | ------------------------- | ----------- |
+| _bunnynet.video_library.views_              | Counter | library_id, name          |             |
+| _bunnynet.video_library.watch_time_         | Counter | library_id, name          |             |
+| _bunnynet.video_library.country_views_      | Counter | library_id, name, country |             |
+| _bunnynet.video_library.country_watch_time_ | Counter | library_id, name, country |             |
 
 ### video_library_transcribing
 
@@ -52,21 +60,21 @@ TODO!
 
 ### pull_zone
 
-| Name                                                          | Type    | Tags                  | Description |
-| ------------------------------------------------------------- | ------- | --------------------- | ----------- |
-| _bunnynet.pull_zone.bandwidth_used_                           | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.bandwidth_cached_                         | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.requests_served_                          | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.pull_requests_pulled_                     | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.origin_shield_bandwidth_used_             | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.origin_shield_internal_bandwidth_used_    | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.origin_traffic_                           | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.errors_3xx_                               | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.errors_4xx_                               | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.errors_5xx_                               | Counter | zone_id, name         |             |
-| _bunnynet.pull_zone.origin_response_time_                     | Gauge   | zone_id, name         |             |
-| _bunnynet.pull_zone.cache_hit_rate_                           | Gauge   | zone_id, name         |             |
-| _bunnynet.pull_zone.geo_traffic_                              | Counter | zone_id, name, region |             |
+| Name                                                       | Type    | Tags                  | Description |
+| ---------------------------------------------------------- | ------- | --------------------- | ----------- |
+| _bunnynet.pull_zone.bandwidth_used_                        | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.bandwidth_cached_                      | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.requests_served_                       | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.pull_requests_pulled_                  | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.origin_shield_bandwidth_used_          | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.origin_shield_internal_bandwidth_used_ | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.origin_traffic_                        | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.errors_3xx_                            | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.errors_4xx_                            | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.errors_5xx_                            | Counter | zone_id, name         |             |
+| _bunnynet.pull_zone.origin_response_time_                  | Gauge   | zone_id, name         |             |
+| _bunnynet.pull_zone.cache_hit_rate_                        | Gauge   | zone_id, name         |             |
+| _bunnynet.pull_zone.geo_traffic_                           | Counter | zone_id, name, region |             |
 
 ### pull_zone_optimizer
 
@@ -93,8 +101,8 @@ TODO!
 
 ### shield_zone
 
-| Name                                                | Type    | Tags                                              | Description |
-| --------------------------------------------------- | ------- | ------------------------------------------------- | ----------- |
-| _bunnynet.shield_zone.requests_                     | Counter | shield_zone_id, pull_zone_id, category, action    |             |
-| _bunnynet.shield_zone.clean_requests_limit_         | Gauge   | shield_zone_id, pull_zone_id                      |             |
-| _bunnynet.shield_zone.billable_requests_this_month_ | Gauge   | shield_zone_id, pull_zone_id                      |             |
+| Name                                                | Type    | Tags                                           | Description |
+| --------------------------------------------------- | ------- | ---------------------------------------------- | ----------- |
+| _bunnynet.shield_zone.requests_                     | Counter | shield_zone_id, pull_zone_id, category, action |             |
+| _bunnynet.shield_zone.clean_requests_limit_         | Gauge   | shield_zone_id, pull_zone_id                   |             |
+| _bunnynet.shield_zone.billable_requests_this_month_ | Gauge   | shield_zone_id, pull_zone_id                   |             |
