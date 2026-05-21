@@ -20,7 +20,7 @@ pub struct CliArgs {
     #[arg(
         short = 'k',
         long,
-        help = "Bunny.net API access key (avoid if possible to prevent access key leaks)"
+        help = "Bunny.net API access key (Can also be set by environment variable BUNNYNET_ACCESS_KEY)"
     )]
     pub access_key: Option<String>,
 
@@ -73,6 +73,6 @@ pub struct CliArgs {
     )]
     pub bind_port: u16,
 
-    #[arg(short, long, value_enum, num_args = 1.., required = true, value_delimiter = ',', help="Categories of stats to poll")]
+    #[arg(short, long, value_enum, num_args = 1.., required = true, value_delimiter = ',', help="Comma-separated list of categories of statistics to poll")]
     pub collectors: Vec<Collector>,
 }
