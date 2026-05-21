@@ -10,6 +10,9 @@ use crate::entity_stats::{
 
 pub type PullZoneSafeHopStatsState = EntityStatsState<PullZoneSafeHopKind>;
 
+const REQUESTS_RETRIED: &str = "requests_retried";
+const REQUESTS_SAVED: &str = "requests_saved";
+
 pub struct PullZoneSafeHopKind;
 
 impl EntityType for PullZoneSafeHopKind {
@@ -22,8 +25,8 @@ impl EntityType for PullZoneSafeHopKind {
         entity.id
     }
 
-    fn entity_label(entity: &PullZone) -> &str {
-        &entity.name
+    fn entity_label(entity: &PullZone) -> String {
+        entity.name.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<PullZone>> {
@@ -41,9 +44,9 @@ impl EntityType for PullZoneSafeHopKind {
                 .await?;
 
             let requests_retried = find_chart_value_for_date(&stats.requests_retried_chart, date)
-                .context("Requests retried")?;
+                .context(REQUESTS_RETRIED)?;
             let requests_saved = find_chart_value_for_date(&stats.requests_saved_chart, date)
-                .context("Requests saved")?;
+                .context(REQUESTS_SAVED)?;
 
             Ok(PullZoneSafeHopDayData {
                 requests_retried,

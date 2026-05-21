@@ -8,6 +8,7 @@ use crate::pull_zone::PullZoneStatsState;
 use crate::pull_zone_optimizer::PullZoneOptimizerStatsState;
 use crate::pull_zone_origin_shield_queue::PullZoneOriginShieldQueueStatsState;
 use crate::pull_zone_safehop::PullZoneSafeHopStatsState;
+use crate::shield_zone::ShieldZoneStatsState;
 use crate::state::{State, read_state_from_file, write_state_to_file};
 use crate::storage_zone::StorageZoneStatsState;
 use crate::video_library::VideoLibraryStatsState;
@@ -26,6 +27,7 @@ pub enum Collector {
     PullZoneOptimizer,
     PullZoneOriginShieldQueue,
     PullZoneSafehop,
+    ShieldZone,
 }
 
 impl Collector {
@@ -45,6 +47,7 @@ impl Collector {
             Self::PullZoneOptimizer => "pull_zone_optimizer",
             Self::PullZoneOriginShieldQueue => "pull_zone_origin_shield_queue",
             Self::PullZoneSafehop => "pull_zone_safehop",
+            Self::ShieldZone => "shield_zone",
         }
     }
 
@@ -91,6 +94,10 @@ impl Collector {
                 PullZoneSafeHopStatsState,
             >(
                 state_dir, &self.state_file_name()
+            )?)),
+            Self::ShieldZone => Ok(Box::new(read_state_from_file::<ShieldZoneStatsState>(
+                state_dir,
+                &self.state_file_name(),
             )?)),
         }
     }

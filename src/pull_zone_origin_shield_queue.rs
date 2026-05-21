@@ -10,6 +10,9 @@ use crate::entity_stats::{
 
 pub type PullZoneOriginShieldQueueStatsState = EntityStatsState<PullZoneOriginShieldQueueKind>;
 
+const CONCURRENT_REQUESTS: &str = "concurrent_requests";
+const QUEUED_REQUESTS: &str = "queued_requests";
+
 pub struct PullZoneOriginShieldQueueKind;
 
 impl EntityType for PullZoneOriginShieldQueueKind {
@@ -22,8 +25,8 @@ impl EntityType for PullZoneOriginShieldQueueKind {
         entity.id
     }
 
-    fn entity_label(entity: &PullZone) -> &str {
-        &entity.name
+    fn entity_label(entity: &PullZone) -> String {
+        entity.name.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<PullZone>> {
@@ -42,9 +45,9 @@ impl EntityType for PullZoneOriginShieldQueueKind {
 
             let concurrent_requests =
                 find_chart_value_for_date(&stats.concurrent_requests_chart, date)
-                    .context("Concurrent requests")?;
+                    .context(CONCURRENT_REQUESTS)?;
             let queued_requests = find_chart_value_for_date(&stats.queued_requests_chart, date)
-                .context("Queued requests")?;
+                .context(QUEUED_REQUESTS)?;
 
             Ok(PullZoneOriginShieldQueueDayData {
                 concurrent_requests,

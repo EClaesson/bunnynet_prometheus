@@ -12,6 +12,19 @@ use crate::entity_stats::{
 
 pub type PullZoneStatsState = EntityStatsState<PullZoneKind>;
 
+const ORIGIN_RESPONSE_TIME: &str = "origin_response_time";
+const CACHE_HIT_RATE: &str = "cache_hit_rate";
+const BANDWIDTH_USED: &str = "bandwidth_used";
+const BANDWIDTH_CACHED: &str = "bandwidth_cached";
+const REQUESTS_SERVED: &str = "requests_served";
+const PULL_REQUESTS_PULLED: &str = "pull_requests_pulled";
+const ORIGIN_SHIELD_BANDWIDTH_USED: &str = "origin_shield_bandwidth_used";
+const ORIGIN_SHIELD_INTERNAL_BANDWIDTH_USED: &str = "origin_shield_internal_bandwidth_used";
+const ORIGIN_TRAFFIC: &str = "origin_traffic";
+const ERRORS_3XX: &str = "errors_3xx";
+const ERRORS_4XX: &str = "errors_4xx";
+const ERRORS_5XX: &str = "errors_5xx";
+
 pub struct PullZoneKind;
 
 impl EntityType for PullZoneKind {
@@ -24,8 +37,8 @@ impl EntityType for PullZoneKind {
         entity.id
     }
 
-    fn entity_label(entity: &PullZone) -> &str {
-        &entity.name
+    fn entity_label(entity: &PullZone) -> String {
+        entity.name.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<PullZone>> {
@@ -42,34 +55,34 @@ impl EntityType for PullZoneKind {
 
             let origin_response_time =
                 find_chart_value_for_date(&stats.origin_response_time_chart, date)
-                    .context("Origin response time")?;
+                    .context(ORIGIN_RESPONSE_TIME)?;
             let cache_hit_rate = find_chart_value_for_date(&stats.cache_hit_rate_chart, date)
-                .context("Cache hit rate")?;
+                .context(CACHE_HIT_RATE)?;
             let bandwidth_used = find_chart_value_for_date(&stats.bandwidth_used_chart, date)
-                .context("Bandwidth used")?;
+                .context(BANDWIDTH_USED)?;
             let bandwidth_cached = find_chart_value_for_date(&stats.bandwidth_cached_chart, date)
-                .context("Bandwidth cached")?;
+                .context(BANDWIDTH_CACHED)?;
             let requests_served = find_chart_value_for_date(&stats.requests_served_chart, date)
-                .context("Requests served")?;
+                .context(REQUESTS_SERVED)?;
             let pull_requests_pulled =
                 find_chart_value_for_date(&stats.pull_requests_pulled_chart, date)
-                    .context("Pull requests pulled")?;
+                    .context(PULL_REQUESTS_PULLED)?;
             let origin_shield_bandwidth_used =
                 find_chart_value_for_date(&stats.origin_shield_bandwidth_used_chart, date)
-                    .context("Origin shield bandwidth used")?;
+                    .context(ORIGIN_SHIELD_BANDWIDTH_USED)?;
             let origin_shield_internal_bandwidth_used = find_chart_value_for_date(
                 &stats.origin_shield_internal_bandwidth_used_chart,
                 date,
             )
-            .context("Origin shield internal bandwidth used")?;
+            .context(ORIGIN_SHIELD_INTERNAL_BANDWIDTH_USED)?;
             let origin_traffic = find_chart_value_for_date(&stats.origin_traffic_chart, date)
-                .context("Origin traffic")?;
+                .context(ORIGIN_TRAFFIC)?;
             let errors_3xx = find_chart_value_for_date(&stats.errors_3xx_chart, date)
-                .context("Errors 3xx")?;
+                .context(ERRORS_3XX)?;
             let errors_4xx = find_chart_value_for_date(&stats.errors_4xx_chart, date)
-                .context("Errors 4xx")?;
+                .context(ERRORS_4XX)?;
             let errors_5xx = find_chart_value_for_date(&stats.errors_5xx_chart, date)
-                .context("Errors 5xx")?;
+                .context(ERRORS_5XX)?;
 
             Ok(PullZoneDayData {
                 origin_response_time,

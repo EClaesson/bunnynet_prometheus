@@ -7,6 +7,7 @@ mod pull_zone;
 mod pull_zone_optimizer;
 mod pull_zone_origin_shield_queue;
 mod pull_zone_safehop;
+mod shield_zone;
 mod state;
 mod storage_zone;
 mod video_library;

@@ -90,3 +90,11 @@ TODO!
 | --------------------------------------------- | ------- | ------------- | ----------- |
 | _bunnynet.pull_zone_safehop.requests_retried_ | Counter | zone_id, name |             |
 | _bunnynet.pull_zone_safehop.requests_saved_   | Counter | zone_id, name |             |
+
+### shield_zone
+
+| Name                                                | Type    | Tags                                              | Description |
+| --------------------------------------------------- | ------- | ------------------------------------------------- | ----------- |
+| _bunnynet.shield_zone.requests_                     | Counter | shield_zone_id, pull_zone_id, category, action    |             |
+| _bunnynet.shield_zone.clean_requests_limit_         | Gauge   | shield_zone_id, pull_zone_id                      |             |
+| _bunnynet.shield_zone.billable_requests_this_month_ | Gauge   | shield_zone_id, pull_zone_id                      |             |

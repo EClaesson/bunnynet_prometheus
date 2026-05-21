@@ -109,6 +109,42 @@ impl ApiClient {
         Ok(items)
     }
 
+    async fn get_all_data_items<T>(
+        &self,
+        base_url: &str,
+        url_path: &str,
+        access_key: Option<&str>,
+    ) -> Result<Vec<T>>
+    where
+        T: DeserializeOwned,
+    {
+        let mut page_num = 1;
+        let mut items: Vec<T> = vec![];
+
+        loop {
+            let mut page = self
+                .build_get(
+                    format!(
+                        "{base_url}/{url_path}?page={page_num}&perPage={ITEMS_PER_PAGE}"
+                    ),
+                    access_key,
+                )?
+                .send()
+                .await?
+                .error_for_status()?
+                .json::<DataPage<T>>()
+                .await?;
+
+            items.append(&mut page.data);
+            match page.page.next_page {
+                Some(next) => page_num = next,
+                None => break,
+            }
+        }
+
+        Ok(items)
+    }
+
     async fn get_single<T>(
         &self,
         base_url: &str,
@@ -350,6 +386,32 @@ impl ApiClient {
         )
         .await
     }
+
+    pub async fn list_shield_zones(&self) -> Result<Vec<ShieldZone>> {
+        debug!("Fetching list of shield zones");
+        self.get_all_data_items::<ShieldZone>(API_BASE_URL, "shield/shield-zones", None)
+            .await
+    }
+
+    pub async fn get_shield_metrics(
+        &self,
+        shield_zone_id: u64,
+        from_date: NaiveDate,
+    ) -> Result<ShieldMetrics> {
+        let from_date = from_date.format(DATE_FORMAT).to_string();
+        debug!(shield_zone_id, from_date, "Fetching shield zone metrics");
+
+        let wrapper = self
+            .get_single::<DataEnvelope<ShieldMetrics>>(
+                API_BASE_URL,
+                &format!(
+                    "shield/metrics/overview/{shield_zone_id}/detailed?startdate={from_date}Z&resolution=4"
+                ),
+                None,
+            )
+            .await?;
+        Ok(wrapper.data)
+    }
 }
 
 #[derive(Deserialize)]
@@ -357,6 +419,23 @@ impl ApiClient {
 struct Page<T> {
     has_more_items: bool,
     items: Vec<T>,
+}
+
+#[derive(Deserialize)]
+struct DataPage<T> {
+    data: Vec<T>,
+    page: DataPageInfo,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DataPageInfo {
+    next_page: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct DataEnvelope<T> {
+    data: T,
 }
 
 #[derive(Deserialize)]
@@ -450,6 +529,43 @@ pub struct VideoLibraryStats {
     pub watch_time_chart: WatchTimeChart,
     pub country_view_counts: CountryViewCounts,
     pub country_watch_time: CountryWatchTime,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShieldZone {
+    pub shield_zone_id: u64,
+    pub pull_zone_id: Option<u64>,
+}
+
+impl Display for ShieldZone {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.pull_zone_id {
+            Some(pz) => write!(f, "shield zone {} (pull zone {pz})", self.shield_zone_id),
+            None => write!(f, "shield zone {}", self.shield_zone_id),
+        }
+    }
+}
+
+pub type ShieldMetricChart = HashMap<String, u64>;
+
+#[derive(Deserialize, Default)]
+pub struct ShieldCategoryMetrics {
+    pub metrics: HashMap<String, ShieldMetricChart>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShieldMetrics {
+    pub waf: ShieldCategoryMetrics,
+    pub ddos: ShieldCategoryMetrics,
+    pub rate_limit: ShieldCategoryMetrics,
+    pub access_lists: ShieldCategoryMetrics,
+    pub bot_detection: ShieldCategoryMetrics,
+    pub upload_scanning: ShieldCategoryMetrics,
+    pub api_guardian: ShieldCategoryMetrics,
+    pub total_clean_requests_limit: u64,
+    pub total_billable_requests_this_month: u64,
 }
 
 #[derive(Deserialize)]

@@ -12,6 +12,9 @@ use crate::entity_stats::{
 
 pub type DnsZoneStatsState = EntityStatsState<DnsZoneKind>;
 
+const NORMAL_QUERIES_SERVED: &str = "normal_queries_served";
+const SMART_QUERIES_SERVED: &str = "smart_queries_served";
+
 pub struct DnsZoneKind;
 
 impl EntityType for DnsZoneKind {
@@ -24,8 +27,8 @@ impl EntityType for DnsZoneKind {
         entity.id
     }
 
-    fn entity_label(entity: &DnsZone) -> &str {
-        &entity.domain
+    fn entity_label(entity: &DnsZone) -> String {
+        entity.domain.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<DnsZone>> {
@@ -42,11 +45,11 @@ impl EntityType for DnsZoneKind {
 
             let normal_queries_served = f64_to_u64(
                 find_chart_value_for_date(&stats.normal_queries_served_chart, date)
-                    .context("Normal queries served")?,
+                    .context(NORMAL_QUERIES_SERVED)?,
             );
             let smart_queries_served = f64_to_u64(
                 find_chart_value_for_date(&stats.smart_queries_served_chart, date)
-                    .context("Smart queries served")?,
+                    .context(SMART_QUERIES_SERVED)?,
             );
 
             let mut queries_served_per_type = QueriesByTypeChart::new();

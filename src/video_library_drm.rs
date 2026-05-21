@@ -10,6 +10,8 @@ use crate::entity_stats::{
 
 pub type VideoLibraryDrmStatsState = EntityStatsState<VideoLibraryDrmKind>;
 
+const LICENSES_ISSUED: &str = "licenses_issued";
+
 pub struct VideoLibraryDrmKind;
 
 impl EntityType for VideoLibraryDrmKind {
@@ -22,8 +24,8 @@ impl EntityType for VideoLibraryDrmKind {
         entity.id
     }
 
-    fn entity_label(entity: &VideoLibrary) -> &str {
-        &entity.name
+    fn entity_label(entity: &VideoLibrary) -> String {
+        entity.name.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<VideoLibrary>> {
@@ -42,7 +44,7 @@ impl EntityType for VideoLibraryDrmKind {
 
             let licenses_issued = f64_to_u64(
                 find_chart_value_for_date(&stats.licenses_issued_chart, date)
-                    .context("Licenses issued")?,
+                    .context(LICENSES_ISSUED)?,
             );
 
             Ok(VideoLibraryDrmDayData { licenses_issued })

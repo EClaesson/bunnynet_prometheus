@@ -10,6 +10,9 @@ use crate::entity_stats::{
 
 pub type StorageZoneStatsState = EntityStatsState<StorageZoneKind>;
 
+const STORAGE_USED: &str = "storage_used";
+const FILE_COUNT: &str = "file_count";
+
 pub struct StorageZoneKind;
 
 impl EntityType for StorageZoneKind {
@@ -22,8 +25,8 @@ impl EntityType for StorageZoneKind {
         entity.id
     }
 
-    fn entity_label(entity: &StorageZone) -> &str {
-        &entity.name
+    fn entity_label(entity: &StorageZone) -> String {
+        entity.name.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<StorageZone>> {
@@ -39,9 +42,9 @@ impl EntityType for StorageZoneKind {
             let stats = client.get_storage_zone_stats(zone.id, date, date).await?;
 
             let storage_used = find_chart_value_for_date(&stats.storage_used_chart, date)
-                .context("Storage used")?;
+                .context(STORAGE_USED)?;
             let file_count =
-                find_chart_value_for_date(&stats.file_count_chart, date).context("File count")?;
+                find_chart_value_for_date(&stats.file_count_chart, date).context(FILE_COUNT)?;
 
             Ok(StorageDayData {
                 storage_used,

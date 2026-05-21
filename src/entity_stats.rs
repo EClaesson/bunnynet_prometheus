@@ -27,7 +27,7 @@ pub trait EntityType: Sized + Send + Sync + 'static {
     const LOG_LABEL: &'static str;
 
     fn entity_id(entity: &Self::Entity) -> u64;
-    fn entity_label(entity: &Self::Entity) -> &str;
+    fn entity_label(entity: &Self::Entity) -> String;
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<Self::Entity>>;
     fn fetch_day<'a>(
@@ -92,7 +92,7 @@ impl<E: EntityType> State for EntityStatsState<E> {
             for entity in &entities {
                 let id = E::entity_id(entity);
                 let entry = self.entities.entry(id).or_default();
-                entry.label = E::entity_label(entity).to_string();
+                entry.label = E::entity_label(entity);
 
                 if let Some(last) = entry.last_complete_day
                     && last < yesterday
@@ -156,6 +156,18 @@ pub fn find_chart_value_for_date<V: Copy>(
             chart.len()
         ),
     }
+}
+
+pub fn find_chart_value_for_date_multi<V: Copy>(
+    chart: &HashMap<String, V>,
+    date: NaiveDate,
+) -> Result<V> {
+    let date_str = date.format(DATE_FORMAT).to_string();
+    chart
+        .iter()
+        .find(|(key, _)| key.starts_with(&date_str))
+        .map(|(_, value)| *value)
+        .ok_or_else(|| anyhow::anyhow!("No entry starting with {date_str} found in chart"))
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

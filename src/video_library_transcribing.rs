@@ -10,6 +10,8 @@ use crate::entity_stats::{
 
 pub type VideoLibraryTranscribingStatsState = EntityStatsState<VideoLibraryTranscribingKind>;
 
+const TRANSCRIPTION_SECONDS: &str = "transcription_seconds";
+
 pub struct VideoLibraryTranscribingKind;
 
 impl EntityType for VideoLibraryTranscribingKind {
@@ -22,8 +24,8 @@ impl EntityType for VideoLibraryTranscribingKind {
         entity.id
     }
 
-    fn entity_label(entity: &VideoLibrary) -> &str {
-        &entity.name
+    fn entity_label(entity: &VideoLibrary) -> String {
+        entity.name.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<VideoLibrary>> {
@@ -42,7 +44,7 @@ impl EntityType for VideoLibraryTranscribingKind {
 
             let transcription_seconds = f64_to_u64(
                 find_chart_value_for_date(&stats.transcription_seconds_chart, date)
-                    .context("Transcription seconds")?,
+                    .context(TRANSCRIPTION_SECONDS)?,
             );
 
             Ok(VideoLibraryTranscribingDayData {

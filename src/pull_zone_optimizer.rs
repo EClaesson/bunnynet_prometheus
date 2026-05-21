@@ -10,6 +10,11 @@ use crate::entity_stats::{
 
 pub type PullZoneOptimizerStatsState = EntityStatsState<PullZoneOptimizerKind>;
 
+const REQUESTS_OPTIMIZED: &str = "requests_optimized";
+const TRAFFIC_SAVED: &str = "traffic_saved";
+const AVERAGE_COMPRESSION: &str = "average_compression";
+const AVERAGE_PROCESSING_TIME: &str = "average_processing_time";
+
 pub struct PullZoneOptimizerKind;
 
 impl EntityType for PullZoneOptimizerKind {
@@ -22,8 +27,8 @@ impl EntityType for PullZoneOptimizerKind {
         entity.id
     }
 
-    fn entity_label(entity: &PullZone) -> &str {
-        &entity.name
+    fn entity_label(entity: &PullZone) -> String {
+        entity.name.clone()
     }
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<PullZone>> {
@@ -42,15 +47,15 @@ impl EntityType for PullZoneOptimizerKind {
 
             let requests_optimized =
                 find_chart_value_for_date(&stats.requests_optimized_chart, date)
-                    .context("Requests optimized")?;
+                    .context(REQUESTS_OPTIMIZED)?;
             let traffic_saved = find_chart_value_for_date(&stats.traffic_saved_chart, date)
-                .context("Traffic saved")?;
+                .context(TRAFFIC_SAVED)?;
             let average_compression =
                 find_chart_value_for_date(&stats.average_compression_chart, date)
-                    .context("Average compression")?;
+                    .context(AVERAGE_COMPRESSION)?;
             let average_processing_time =
                 find_chart_value_for_date(&stats.average_processing_time_chart, date)
-                    .context("Average processing time")?;
+                    .context(AVERAGE_PROCESSING_TIME)?;
 
             Ok(PullZoneOptimizerDayData {
                 requests_optimized,
