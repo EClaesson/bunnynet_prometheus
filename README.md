@@ -5,7 +5,7 @@ Expose [Bunny.net](https://bunny.net) statistics as a scrapable prometheus endpo
 _bunnynet_prometheus_ is a daemon that periodically polls the [Bunny.net API](https://docs.bunny.net/api-reference) for usage and performance statistics and re-exposes it as Prometheus metrics on a HTTP endpoint.
 
 All available statistics endpoints in the Bunny.net API are covered. Magic container applications, DNS zones, Edge scripts, Storage zones, Video libraries, Video transcribing, Video DRM, Pull zones, Pull zone optimizers, Pull zone origin shields, Pull zone safehops and Shield zones.
-Each category of statistics are implemented as separate collectors that can be individually enabled. Details about available collectors and the metrics they emit are avilable at [Collectors](#collectors).
+Each category of statistics are implemented as separate collectors that can be individually enabled. Details about available collectors and the metrics they emit can be found at [Collectors](#collectors).
 
 Counter values are persisted to disk between the poll cycles, so restarts doesn't reset totals and day rollovers are correctly handled. If the daemon has been stopped a longer time (max 30 days), missed days will be backfilled.
 
@@ -69,9 +69,9 @@ These metrics are always enabled and expose the health and age of the collectors
 
 | Name                                                | Type  | Tags      |
 | --------------------------------------------------- | ----- | --------- |
-| _bunnynet.last_update_attempt.timestamp_seconds_    | Gauge |           |
-| _bunnynet.last_successful_update.timestamp_seconds_ | Gauge |           |
-| _bunnynet.last_collector_update.timestamp_seconds_  | Gauge | collector |
+| _bunnynet_last_update_attempt_timestamp_seconds_    | Gauge |           |
+| _bunnynet_last_successful_update_timestamp_seconds_ | Gauge |           |
+| _bunnynet_last_collector_update_timestamp_seconds_  | Gauge | collector |
 
 ## Collectors
 
@@ -79,105 +79,105 @@ These metrics are always enabled and expose the health and age of the collectors
 
 | Name                                   | Type    | Tags                 |
 | -------------------------------------- | ------- | -------------------- |
-| _bunnynet.application.target_latency_  | Gauge   | app_id, name         |
-| _bunnynet.application.active_regions_  | Gauge   | app_id, name         |
-| _bunnynet.application.latency_         | Gauge   | app_id, name         |
-| _bunnynet.application.instances_       | Gauge   | app_id, name         |
-| _bunnynet.application.cpu_usage_       | Gauge   | app_id, name         |
-| _bunnynet.application.ram_usage_       | Gauge   | app_id, name         |
-| _bunnynet.application.traffic_         | Counter | app_id, name         |
-| _bunnynet.application.volume_usage_    | Gauge   | app_id, name, volume |
-| _bunnynet.application.volume_capacity_ | Gauge   | app_id, name, volume |
+| _bunnynet_application_target_latency_  | Gauge   | app_id, name         |
+| _bunnynet_application_active_regions_  | Gauge   | app_id, name         |
+| _bunnynet_application_latency_         | Gauge   | app_id, name         |
+| _bunnynet_application_instances_       | Gauge   | app_id, name         |
+| _bunnynet_application_cpu_usage_       | Gauge   | app_id, name         |
+| _bunnynet_application_ram_usage_       | Gauge   | app_id, name         |
+| _bunnynet_application_traffic_         | Counter | app_id, name         |
+| _bunnynet_application_volume_usage_    | Gauge   | app_id, name, volume |
+| _bunnynet_application_volume_capacity_ | Gauge   | app_id, name, volume |
 
 ### dns_zone
 
 | Name                                | Type    | Tags                  |
 | ----------------------------------- | ------- | --------------------- |
-| _bunnynet.dns_zone.normal_queries_  | Counter | zone_id, domain       |
-| _bunnynet.dns_zone.smart_queries_   | Counter | zone_id, domain       |
-| _bunnynet.dns_zone.queries_by_type_ | Counter | zone_id, domain, type |
+| _bunnynet_dns_zone_normal_queries_  | Counter | zone_id, domain       |
+| _bunnynet_dns_zone_smart_queries_   | Counter | zone_id, domain       |
+| _bunnynet_dns_zone_queries_by_type_ | Counter | zone_id, domain, type |
 
 ### edge_script
 
 | Name                                    | Type    | Tags            |
 | --------------------------------------- | ------- | --------------- |
-| _bunnynet.edge_script.requests_served_  | Counter | script_id, name |
-| _bunnynet.edge_script.cpu_time_         | Counter | script_id, name |
-| _bunnynet.edge_script.average_cpu_time_ | Gauge   | script_id, name |
+| _bunnynet_edge_script_requests_served_  | Counter | script_id, name |
+| _bunnynet_edge_script_cpu_time_         | Counter | script_id, name |
+| _bunnynet_edge_script_average_cpu_time_ | Gauge   | script_id, name |
 
 ### storage_zone
 
 | Name                                 | Type    | Tags          |
 | ------------------------------------ | ------- | ------------- |
-| _bunnynet.storage_zone.storage_used_ | Counter | zone_id, name |
-| _bunnynet.storage_zone.file_count_   | Counter | zone_id, name |
+| _bunnynet_storage_zone_storage_used_ | Counter | zone_id, name |
+| _bunnynet_storage_zone_file_count_   | Counter | zone_id, name |
 
 ### video_library
 
 | Name                                        | Type    | Tags                      |
 | ------------------------------------------- | ------- | ------------------------- |
-| _bunnynet.video_library.views_              | Counter | library_id, name          |
-| _bunnynet.video_library.watch_time_         | Counter | library_id, name          |
-| _bunnynet.video_library.country_views_      | Counter | library_id, name, country |
-| _bunnynet.video_library.country_watch_time_ | Counter | library_id, name, country |
+| _bunnynet_video_library_views_              | Counter | library_id, name          |
+| _bunnynet_video_library_watch_time_         | Counter | library_id, name          |
+| _bunnynet_video_library_country_views_      | Counter | library_id, name, country |
+| _bunnynet_video_library_country_watch_time_ | Counter | library_id, name, country |
 
 ### video_library_drm
 
 | Name                                         | Type    | Tags             |
 | -------------------------------------------- | ------- | ---------------- |
-| _bunnynet.video_library_drm.licenses_issued_ | Counter | library_id, name |
+| _bunnynet_video_library_drm_licenses_issued_ | Counter | library_id, name |
 
 ### video_library_transcribing
 
 | Name                                          | Type    | Tags             |
 | --------------------------------------------- | ------- | ---------------- |
-| _bunnynet.video_library_transcribing.seconds_ | Counter | library_id, name |
+| _bunnynet_video_library_transcribing_seconds_ | Counter | library_id, name |
 
 ### pull_zone
 
 | Name                                                       | Type    | Tags                  |
 | ---------------------------------------------------------- | ------- | --------------------- |
-| _bunnynet.pull_zone.bandwidth_used_                        | Counter | zone_id, name         |
-| _bunnynet.pull_zone.bandwidth_cached_                      | Counter | zone_id, name         |
-| _bunnynet.pull_zone.requests_served_                       | Counter | zone_id, name         |
-| _bunnynet.pull_zone.pull_requests_pulled_                  | Counter | zone_id, name         |
-| _bunnynet.pull_zone.origin_shield_bandwidth_used_          | Counter | zone_id, name         |
-| _bunnynet.pull_zone.origin_shield_internal_bandwidth_used_ | Counter | zone_id, name         |
-| _bunnynet.pull_zone.origin_traffic_                        | Counter | zone_id, name         |
-| _bunnynet.pull_zone.errors_3xx_                            | Counter | zone_id, name         |
-| _bunnynet.pull_zone.errors_4xx_                            | Counter | zone_id, name         |
-| _bunnynet.pull_zone.errors_5xx_                            | Counter | zone_id, name         |
-| _bunnynet.pull_zone.origin_response_time_                  | Gauge   | zone_id, name         |
-| _bunnynet.pull_zone.cache_hit_rate_                        | Gauge   | zone_id, name         |
-| _bunnynet.pull_zone.geo_traffic_                           | Counter | zone_id, name, region |
+| _bunnynet_pull_zone_bandwidth_used_                        | Counter | zone_id, name         |
+| _bunnynet_pull_zone_bandwidth_cached_                      | Counter | zone_id, name         |
+| _bunnynet_pull_zone_requests_served_                       | Counter | zone_id, name         |
+| _bunnynet_pull_zone_pull_requests_pulled_                  | Counter | zone_id, name         |
+| _bunnynet_pull_zone_origin_shield_bandwidth_used_          | Counter | zone_id, name         |
+| _bunnynet_pull_zone_origin_shield_internal_bandwidth_used_ | Counter | zone_id, name         |
+| _bunnynet_pull_zone_origin_traffic_                        | Counter | zone_id, name         |
+| _bunnynet_pull_zone_errors_3xx_                            | Counter | zone_id, name         |
+| _bunnynet_pull_zone_errors_4xx_                            | Counter | zone_id, name         |
+| _bunnynet_pull_zone_errors_5xx_                            | Counter | zone_id, name         |
+| _bunnynet_pull_zone_origin_response_time_                  | Gauge   | zone_id, name         |
+| _bunnynet_pull_zone_cache_hit_rate_                        | Gauge   | zone_id, name         |
+| _bunnynet_pull_zone_geo_traffic_                           | Counter | zone_id, name, region |
 
 ### pull_zone_optimizer
 
 | Name                                                   | Type    | Tags          |
 | ------------------------------------------------------ | ------- | ------------- |
-| _bunnynet.pull_zone_optimizer.requests_optimized_      | Counter | zone_id, name |
-| _bunnynet.pull_zone_optimizer.traffic_saved_           | Counter | zone_id, name |
-| _bunnynet.pull_zone_optimizer.average_compression_     | Gauge   | zone_id, name |
-| _bunnynet.pull_zone_optimizer.average_processing_time_ | Gauge   | zone_id, name |
+| _bunnynet_pull_zone_optimizer_requests_optimized_      | Counter | zone_id, name |
+| _bunnynet_pull_zone_optimizer_traffic_saved_           | Counter | zone_id, name |
+| _bunnynet_pull_zone_optimizer_average_compression_     | Gauge   | zone_id, name |
+| _bunnynet_pull_zone_optimizer_average_processing_time_ | Gauge   | zone_id, name |
 
 ### pull_zone_origin_shield_queue
 
 | Name                                                         | Type  | Tags          |
 | ------------------------------------------------------------ | ----- | ------------- |
-| _bunnynet.pull_zone_origin_shield_queue.concurrent_requests_ | Gauge | zone_id, name |
-| _bunnynet.pull_zone_origin_shield_queue.queued_requests_     | Gauge | zone_id, name |
+| _bunnynet_pull_zone_origin_shield_queue_concurrent_requests_ | Gauge | zone_id, name |
+| _bunnynet_pull_zone_origin_shield_queue_queued_requests_     | Gauge | zone_id, name |
 
 ### pull_zone_safehop
 
 | Name                                          | Type    | Tags          |
 | --------------------------------------------- | ------- | ------------- |
-| _bunnynet.pull_zone_safehop.requests_retried_ | Counter | zone_id, name |
-| _bunnynet.pull_zone_safehop.requests_saved_   | Counter | zone_id, name |
+| _bunnynet_pull_zone_safehop_requests_retried_ | Counter | zone_id, name |
+| _bunnynet_pull_zone_safehop_requests_saved_   | Counter | zone_id, name |
 
 ### shield_zone
 
 | Name                                                | Type    | Tags                                           |
 | --------------------------------------------------- | ------- | ---------------------------------------------- |
-| _bunnynet.shield_zone.requests_                     | Counter | shield_zone_id, pull_zone_id, category, action |
-| _bunnynet.shield_zone.clean_requests_limit_         | Gauge   | shield_zone_id, pull_zone_id                   |
-| _bunnynet.shield_zone.billable_requests_this_month_ | Gauge   | shield_zone_id, pull_zone_id                   |
+| _bunnynet_shield_zone_requests_                     | Counter | shield_zone_id, pull_zone_id, category, action |
+| _bunnynet_shield_zone_clean_requests_limit_         | Gauge   | shield_zone_id, pull_zone_id                   |
+| _bunnynet_shield_zone_billable_requests_this_month_ | Gauge   | shield_zone_id, pull_zone_id                   |
