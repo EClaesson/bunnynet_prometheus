@@ -742,10 +742,10 @@ pub type AverageProcessingTimeChart = HashMap<String, f64>;
 #[serde(rename_all = "PascalCase")]
 #[allow(clippy::struct_field_names)]
 pub struct PullZoneOptimizerStats {
-    pub requests_optimized_chart: RequestsOptimizedChart,
-    pub traffic_saved_chart: TrafficSavedChart,
-    pub average_compression_chart: AverageCompressionChart,
-    pub average_processing_time_chart: AverageProcessingTimeChart,
+    pub requests_optimized_chart: Option<RequestsOptimizedChart>,
+    pub traffic_saved_chart: Option<TrafficSavedChart>,
+    pub average_compression_chart: Option<AverageCompressionChart>,
+    pub average_processing_time_chart: Option<AverageProcessingTimeChart>,
 }
 
 pub type ConcurrentRequestsChart = HashMap<String, u64>;

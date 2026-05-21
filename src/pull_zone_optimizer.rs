@@ -1,4 +1,6 @@
-use anyhow::Context;
+use std::collections::HashMap;
+
+use anyhow::{Context, Result};
 use chrono::NaiveDate;
 use metrics::{counter, gauge};
 use serde::{Deserialize, Serialize};
@@ -46,15 +48,16 @@ impl EntityType for PullZoneOptimizerKind {
                 .await?;
 
             let requests_optimized =
-                find_chart_value_for_date(&stats.requests_optimized_chart, date)
+                chart_value_or_default(stats.requests_optimized_chart.as_ref(), date)
                     .context(REQUESTS_OPTIMIZED)?;
-            let traffic_saved = find_chart_value_for_date(&stats.traffic_saved_chart, date)
-                .context(TRAFFIC_SAVED)?;
+            let traffic_saved =
+                chart_value_or_default(stats.traffic_saved_chart.as_ref(), date)
+                    .context(TRAFFIC_SAVED)?;
             let average_compression =
-                find_chart_value_for_date(&stats.average_compression_chart, date)
+                chart_value_or_default(stats.average_compression_chart.as_ref(), date)
                     .context(AVERAGE_COMPRESSION)?;
             let average_processing_time =
-                find_chart_value_for_date(&stats.average_processing_time_chart, date)
+                chart_value_or_default(stats.average_processing_time_chart.as_ref(), date)
                     .context(AVERAGE_PROCESSING_TIME)?;
 
             Ok(PullZoneOptimizerDayData {
@@ -83,6 +86,13 @@ impl EntityType for PullZoneOptimizerKind {
         gauge!("bunnynet.pull_zone_optimizer.average_processing_time", &labels)
             .set(current.average_processing_time);
     }
+}
+
+fn chart_value_or_default<V: Copy + Default>(
+    chart: Option<&HashMap<String, V>>,
+    date: NaiveDate,
+) -> Result<V> {
+    chart.map_or_else(|| Ok(V::default()), |c| find_chart_value_for_date(c, date))
 }
 
 #[derive(Serialize, Deserialize, Default)]
