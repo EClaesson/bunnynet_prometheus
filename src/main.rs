@@ -1,3 +1,4 @@
+mod application;
 mod bunny;
 mod cli;
 mod collector;

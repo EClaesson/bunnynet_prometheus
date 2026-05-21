@@ -20,8 +20,8 @@ impl EntityType for VideoLibraryTranscribingKind {
 
     const LOG_LABEL: &'static str = "Video library transcribing";
 
-    fn entity_id(entity: &VideoLibrary) -> u64 {
-        entity.id
+    fn entity_id(entity: &VideoLibrary) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &VideoLibrary) -> String {
@@ -54,7 +54,7 @@ impl EntityType for VideoLibraryTranscribingKind {
     }
 
     fn emit_metrics(
-        id: u64,
+        id: &str,
         name: &str,
         last: &VideoLibraryTranscribingDayData,
         current: &VideoLibraryTranscribingDayData,

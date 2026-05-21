@@ -21,8 +21,8 @@ impl EntityType for StorageZoneKind {
 
     const LOG_LABEL: &'static str = "storage zone";
 
-    fn entity_id(entity: &StorageZone) -> u64 {
-        entity.id
+    fn entity_id(entity: &StorageZone) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &StorageZone) -> String {
@@ -53,7 +53,7 @@ impl EntityType for StorageZoneKind {
         })
     }
 
-    fn emit_metrics(id: u64, name: &str, last: &StorageDayData, current: &StorageDayData) {
+    fn emit_metrics(id: &str, name: &str, last: &StorageDayData, current: &StorageDayData) {
         let labels = [("zone_id", id.to_string()), ("name", name.to_string())];
 
         counter!("bunnynet.storage_zone.storage_used", &labels)

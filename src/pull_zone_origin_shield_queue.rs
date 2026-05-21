@@ -21,8 +21,8 @@ impl EntityType for PullZoneOriginShieldQueueKind {
 
     const LOG_LABEL: &'static str = "Pull zone origin shield queue";
 
-    fn entity_id(entity: &PullZone) -> u64 {
-        entity.id
+    fn entity_id(entity: &PullZone) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &PullZone) -> String {
@@ -58,7 +58,7 @@ impl EntityType for PullZoneOriginShieldQueueKind {
 
     #[allow(clippy::cast_precision_loss)]
     fn emit_metrics(
-        id: u64,
+        id: &str,
         name: &str,
         _last: &PullZoneOriginShieldQueueDayData,
         current: &PullZoneOriginShieldQueueDayData,

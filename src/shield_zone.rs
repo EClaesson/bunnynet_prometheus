@@ -28,8 +28,8 @@ impl EntityType for ShieldZoneKind {
 
     const LOG_LABEL: &'static str = "Shield zone";
 
-    fn entity_id(entity: &ShieldZone) -> u64 {
-        entity.shield_zone_id
+    fn entity_id(entity: &ShieldZone) -> String {
+        entity.shield_zone_id.to_string()
     }
 
     fn entity_label(entity: &ShieldZone) -> String {
@@ -95,13 +95,11 @@ impl EntityType for ShieldZoneKind {
     }
 
     fn emit_metrics(
-        id: u64,
+        id: &str,
         pull_zone_id: &str,
         last: &ShieldZoneDayData,
         current: &ShieldZoneDayData,
     ) {
-        let id_str = id.to_string();
-
         let category_keys: HashSet<&String> = last
             .categories
             .keys()
@@ -122,7 +120,7 @@ impl EntityType for ShieldZoneKind {
                     + current_actions.get(action).copied().unwrap_or(0);
                 counter!(
                     "bunnynet.shield_zone.requests",
-                    "shield_zone_id" => id_str.clone(),
+                    "shield_zone_id" => id.to_string(),
                     "pull_zone_id" => pull_zone_id.to_string(),
                     "category" => category.clone(),
                     "action" => action.clone(),
@@ -132,7 +130,7 @@ impl EntityType for ShieldZoneKind {
         }
 
         let gauge_labels = [
-            ("shield_zone_id", id_str),
+            ("shield_zone_id", id.to_string()),
             ("pull_zone_id", pull_zone_id.to_string()),
         ];
         #[allow(clippy::cast_precision_loss)]

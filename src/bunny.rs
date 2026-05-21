@@ -109,6 +109,42 @@ impl ApiClient {
         Ok(items)
     }
 
+    async fn get_all_cursor_items<T>(
+        &self,
+        base_url: &str,
+        url_path: &str,
+        access_key: Option<&str>,
+    ) -> Result<Vec<T>>
+    where
+        T: DeserializeOwned,
+    {
+        let mut cursor: Option<String> = None;
+        let mut items: Vec<T> = vec![];
+
+        loop {
+            let url = cursor.as_ref().map_or_else(
+                || format!("{base_url}/{url_path}?limit={ITEMS_PER_PAGE}"),
+                |c| format!("{base_url}/{url_path}?limit={ITEMS_PER_PAGE}&nextCursor={c}"),
+            );
+
+            let mut page = self
+                .build_get(url, access_key)?
+                .send()
+                .await?
+                .error_for_status()?
+                .json::<CursorPage<T>>()
+                .await?;
+
+            items.append(&mut page.items);
+            cursor = page.cursor.filter(|c| !c.is_empty());
+            if cursor.is_none() {
+                break;
+            }
+        }
+
+        Ok(items)
+    }
+
     async fn get_all_data_items<T>(
         &self,
         base_url: &str,
@@ -387,6 +423,35 @@ impl ApiClient {
         .await
     }
 
+    pub async fn list_applications(&self) -> Result<Vec<Application>> {
+        debug!("Fetching list of applications");
+        self.get_all_cursor_items::<Application>(API_BASE_URL, "mc/apps", None)
+            .await
+    }
+
+    pub async fn get_application_stats(
+        &self,
+        app_id: &str,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<ApplicationStats> {
+        let from_date = from_date.format(DATE_FORMAT).to_string();
+        let to_date = to_date.format(DATE_FORMAT).to_string();
+        debug!(
+            app_id, from_date, to_date,
+            "Fetching application statistics"
+        );
+
+        self.get_single::<ApplicationStats>(
+            API_BASE_URL,
+            &format!(
+                "mc/apps/{app_id}/statistics?fromDate={from_date}&toDate={to_date}&granularity=daily"
+            ),
+            None,
+        )
+        .await
+    }
+
     pub async fn list_edge_scripts(&self) -> Result<Vec<EdgeScript>> {
         debug!("Fetching list of edge scripts");
         self.get_all_items::<EdgeScript>(API_BASE_URL, "compute/script", None)
@@ -449,6 +514,12 @@ struct Page<T> {
 struct DataPage<T> {
     data: Vec<T>,
     page: DataPageInfo,
+}
+
+#[derive(Deserialize)]
+struct CursorPage<T> {
+    items: Vec<T>,
+    cursor: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -553,6 +624,37 @@ pub struct VideoLibraryStats {
     pub watch_time_chart: WatchTimeChart,
     pub country_view_counts: CountryViewCounts,
     pub country_watch_time: CountryWatchTime,
+}
+
+#[derive(Deserialize)]
+pub struct Application {
+    pub id: String,
+    pub name: String,
+}
+
+impl Display for Application {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.name, self.id)
+    }
+}
+
+pub type ApplicationFloatChart = HashMap<String, f64>;
+pub type ApplicationNullableFloatChart = HashMap<String, Option<f64>>;
+pub type ApplicationVolumeChart = HashMap<String, ApplicationFloatChart>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(clippy::struct_field_names)]
+pub struct ApplicationStats {
+    pub target_latency_chart: ApplicationFloatChart,
+    pub active_regions_chart: ApplicationNullableFloatChart,
+    pub latency_chart: ApplicationFloatChart,
+    pub instances_chart: ApplicationNullableFloatChart,
+    pub cpu_usage_chart: ApplicationFloatChart,
+    pub ram_usage_chart: ApplicationFloatChart,
+    pub traffic_chart: ApplicationFloatChart,
+    pub volumes_split_usage_chart: ApplicationVolumeChart,
+    pub volumes_split_capacity_chart: ApplicationVolumeChart,
 }
 
 #[derive(Deserialize)]

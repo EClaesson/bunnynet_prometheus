@@ -23,8 +23,8 @@ impl EntityType for VideoLibraryKind {
 
     const LOG_LABEL: &'static str = "Video library";
 
-    fn entity_id(entity: &VideoLibrary) -> u64 {
-        entity.id
+    fn entity_id(entity: &VideoLibrary) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &VideoLibrary) -> String {
@@ -65,13 +65,12 @@ impl EntityType for VideoLibraryKind {
     }
 
     fn emit_metrics(
-        id: u64,
+        id: &str,
         name: &str,
         last: &VideoLibraryDayData,
         current: &VideoLibraryDayData,
     ) {
-        let id_str = id.to_string();
-        let labels = [("library_id", id_str.clone()), ("name", name.to_string())];
+        let labels = [("library_id", id.to_string()), ("name", name.to_string())];
 
         counter!("bunnynet.video_library.views", &labels)
             .absolute(last.views + current.views);
@@ -88,7 +87,7 @@ impl EntityType for VideoLibraryKind {
                 + current.country_views.get(country).copied().unwrap_or(0);
             counter!(
                 "bunnynet.video_library.country_views",
-                "library_id" => id_str.clone(),
+                "library_id" => id.to_string(),
                 "name" => name.to_string(),
                 "country" => country.clone(),
             )
@@ -105,7 +104,7 @@ impl EntityType for VideoLibraryKind {
                 + current.country_watch_time.get(country).copied().unwrap_or(0);
             counter!(
                 "bunnynet.video_library.country_watch_time",
-                "library_id" => id_str.clone(),
+                "library_id" => id.to_string(),
                 "name" => name.to_string(),
                 "country" => country.clone(),
             )

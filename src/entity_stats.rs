@@ -26,7 +26,7 @@ pub trait EntityType: Sized + Send + Sync + 'static {
 
     const LOG_LABEL: &'static str;
 
-    fn entity_id(entity: &Self::Entity) -> u64;
+    fn entity_id(entity: &Self::Entity) -> String;
     fn entity_label(entity: &Self::Entity) -> String;
 
     fn list(client: &ApiClient) -> FetchFuture<'_, Vec<Self::Entity>>;
@@ -36,7 +36,7 @@ pub trait EntityType: Sized + Send + Sync + 'static {
         date: NaiveDate,
     ) -> FetchFuture<'a, Self::DayData>;
 
-    fn emit_metrics(id: u64, label: &str, last: &Self::DayData, current: &Self::DayData);
+    fn emit_metrics(id: &str, label: &str, last: &Self::DayData, current: &Self::DayData);
 }
 
 #[derive(Serialize, Deserialize)]
@@ -45,7 +45,7 @@ pub trait EntityType: Sized + Send + Sync + 'static {
     deserialize = "E::DayData: Deserialize<'de>"
 ))]
 pub struct EntityStatsState<E: EntityType> {
-    entities: HashMap<u64, EntityEntry<E>>,
+    entities: HashMap<String, EntityEntry<E>>,
 }
 
 impl<E: EntityType> Default for EntityStatsState<E> {
@@ -127,7 +127,7 @@ impl<E: EntityType> State for EntityStatsState<E> {
 
             for (id, entry) in &self.entities {
                 E::emit_metrics(
-                    *id,
+                    id,
                     &entry.label,
                     &entry.last_complete_day_state,
                     &entry.current_day_state,

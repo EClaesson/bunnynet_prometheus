@@ -22,8 +22,8 @@ impl EntityType for EdgeScriptKind {
 
     const LOG_LABEL: &'static str = "Edge script";
 
-    fn entity_id(entity: &EdgeScript) -> u64 {
-        entity.id
+    fn entity_id(entity: &EdgeScript) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &EdgeScript) -> String {
@@ -62,7 +62,7 @@ impl EntityType for EdgeScriptKind {
     }
 
     fn emit_metrics(
-        id: u64,
+        id: &str,
         name: &str,
         last: &EdgeScriptDayData,
         current: &EdgeScriptDayData,

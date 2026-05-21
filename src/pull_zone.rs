@@ -33,8 +33,8 @@ impl EntityType for PullZoneKind {
 
     const LOG_LABEL: &'static str = "Pull zone";
 
-    fn entity_id(entity: &PullZone) -> u64 {
-        entity.id
+    fn entity_id(entity: &PullZone) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &PullZone) -> String {
@@ -102,9 +102,8 @@ impl EntityType for PullZoneKind {
         })
     }
 
-    fn emit_metrics(id: u64, name: &str, last: &PullZoneDayData, current: &PullZoneDayData) {
-        let id_str = id.to_string();
-        let labels = [("zone_id", id_str.clone()), ("name", name.to_string())];
+    fn emit_metrics(id: &str, name: &str, last: &PullZoneDayData, current: &PullZoneDayData) {
+        let labels = [("zone_id", id.to_string()), ("name", name.to_string())];
 
         counter!("bunnynet.pull_zone.bandwidth_used", &labels)
             .absolute(last.bandwidth_used + current.bandwidth_used);
@@ -158,7 +157,7 @@ impl EntityType for PullZoneKind {
 
             counter!(
                 "bunnynet.pull_zone.geo_traffic",
-                "zone_id" => id_str.clone(),
+                "zone_id" => id.to_string(),
                 "name" => name.to_string(),
                 "region" => region.clone(),
             )

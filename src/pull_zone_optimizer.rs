@@ -23,8 +23,8 @@ impl EntityType for PullZoneOptimizerKind {
 
     const LOG_LABEL: &'static str = "Pull zone optimizer";
 
-    fn entity_id(entity: &PullZone) -> u64 {
-        entity.id
+    fn entity_id(entity: &PullZone) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &PullZone) -> String {
@@ -67,7 +67,7 @@ impl EntityType for PullZoneOptimizerKind {
     }
 
     fn emit_metrics(
-        id: u64,
+        id: &str,
         name: &str,
         last: &PullZoneOptimizerDayData,
         current: &PullZoneOptimizerDayData,

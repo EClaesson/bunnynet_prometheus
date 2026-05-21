@@ -23,8 +23,8 @@ impl EntityType for DnsZoneKind {
 
     const LOG_LABEL: &'static str = "DNS zone";
 
-    fn entity_id(entity: &DnsZone) -> u64 {
-        entity.id
+    fn entity_id(entity: &DnsZone) -> String {
+        entity.id.to_string()
     }
 
     fn entity_label(entity: &DnsZone) -> String {
@@ -65,9 +65,8 @@ impl EntityType for DnsZoneKind {
         })
     }
 
-    fn emit_metrics(id: u64, domain: &str, last: &DnsDayData, current: &DnsDayData) {
-        let id_str = id.to_string();
-        let labels = [("zone_id", id_str.clone()), ("domain", domain.to_string())];
+    fn emit_metrics(id: &str, domain: &str, last: &DnsDayData, current: &DnsDayData) {
+        let labels = [("zone_id", id.to_string()), ("domain", domain.to_string())];
 
         counter!("bunnynet.dns_zone.normal_queries", &labels)
             .absolute(last.normal_queries_served + current.normal_queries_served);
@@ -94,7 +93,7 @@ impl EntityType for DnsZoneKind {
 
             counter!(
                 "bunnynet.dns_zone.queries_by_type",
-                "zone_id" => id_str.clone(),
+                "zone_id" => id.to_string(),
                 "domain" => domain.to_string(),
                 "type" => type_str.clone(),
             )

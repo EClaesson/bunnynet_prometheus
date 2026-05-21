@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use clap::ValueEnum;
 
+use crate::application::ApplicationStatsState;
 use crate::dns_zone::DnsZoneStatsState;
 use crate::edge_script::EdgeScriptStatsState;
 use crate::pull_zone::PullZoneStatsState;
@@ -19,6 +20,7 @@ use crate::video_library_transcribing::VideoLibraryTranscribingStatsState;
 #[derive(Clone, Copy, Debug, ValueEnum)]
 #[value(rename_all = "snake_case")]
 pub enum Collector {
+    Application,
     DnsZone,
     EdgeScript,
     StorageZone,
@@ -40,6 +42,7 @@ impl Collector {
 
     pub const fn name(self) -> &'static str {
         match self {
+            Self::Application => "application",
             Self::DnsZone => "dns_zone",
             Self::EdgeScript => "edge_script",
             Self::StorageZone => "storage_zone",
@@ -56,6 +59,10 @@ impl Collector {
 
     pub fn load_state(self, state_dir: &Path) -> Result<Box<dyn State>> {
         match self {
+            Self::Application => Ok(Box::new(read_state_from_file::<ApplicationStatsState>(
+                state_dir,
+                &self.state_file_name(),
+            )?)),
             Self::DnsZone => Ok(Box::new(read_state_from_file::<DnsZoneStatsState>(
                 state_dir,
                 &self.state_file_name(),

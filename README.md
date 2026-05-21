@@ -14,6 +14,20 @@ TODO!
 
 ## Collectors
 
+### application
+
+| Name                                   | Type    | Tags                 | Description |
+| -------------------------------------- | ------- | -------------------- | ----------- |
+| _bunnynet.application.target_latency_  | Gauge   | app_id, name         |             |
+| _bunnynet.application.active_regions_  | Gauge   | app_id, name         |             |
+| _bunnynet.application.latency_         | Gauge   | app_id, name         |             |
+| _bunnynet.application.instances_       | Gauge   | app_id, name         |             |
+| _bunnynet.application.cpu_usage_       | Gauge   | app_id, name         |             |
+| _bunnynet.application.ram_usage_       | Gauge   | app_id, name         |             |
+| _bunnynet.application.traffic_         | Counter | app_id, name         |             |
+| _bunnynet.application.volume_usage_    | Gauge   | app_id, name, volume |             |
+| _bunnynet.application.volume_capacity_ | Gauge   | app_id, name, volume |             |
+
 ### dns_zone
 
 | Name                                | Type    | Tags                  | Description |
