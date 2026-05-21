@@ -10,6 +10,7 @@ use crate::pull_zone_origin_shield_queue::PullZoneOriginShieldQueueStatsState;
 use crate::pull_zone_safehop::PullZoneSafeHopStatsState;
 use crate::state::{State, read_state_from_file, write_state_to_file};
 use crate::storage_zone::StorageZoneStatsState;
+use crate::video_library::VideoLibraryStatsState;
 use crate::video_library_drm::VideoLibraryDrmStatsState;
 use crate::video_library_transcribing::VideoLibraryTranscribingStatsState;
 
@@ -18,6 +19,7 @@ use crate::video_library_transcribing::VideoLibraryTranscribingStatsState;
 pub enum Collector {
     DnsZone,
     StorageZone,
+    VideoLibrary,
     VideoLibraryTranscribing,
     VideoLibraryDrm,
     PullZone,
@@ -36,6 +38,7 @@ impl Collector {
         match self {
             Self::DnsZone => "dns_zone",
             Self::StorageZone => "storage_zone",
+            Self::VideoLibrary => "video_library",
             Self::VideoLibraryTranscribing => "video_library_transcribing",
             Self::VideoLibraryDrm => "video_library_drm",
             Self::PullZone => "pull_zone",
@@ -52,6 +55,10 @@ impl Collector {
                 &self.state_file_name(),
             )?)),
             Self::StorageZone => Ok(Box::new(read_state_from_file::<StorageZoneStatsState>(
+                state_dir,
+                &self.state_file_name(),
+            )?)),
+            Self::VideoLibrary => Ok(Box::new(read_state_from_file::<VideoLibraryStatsState>(
                 state_dir,
                 &self.state_file_name(),
             )?)),

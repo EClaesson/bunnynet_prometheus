@@ -9,6 +9,7 @@ mod pull_zone_origin_shield_queue;
 mod pull_zone_safehop;
 mod state;
 mod storage_zone;
+mod video_library;
 mod video_library_drm;
 mod video_library_transcribing;
 

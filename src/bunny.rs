@@ -9,6 +9,7 @@ use tracing::debug;
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 const API_BASE_URL: &str = "https://api.bunny.net";
+const STREAM_API_BASE_URL: &str = "https://video.bunnycdn.com";
 const ACCESS_KEY_HEADER: &str = "AccessKey";
 const MIN_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const MAX_RETRY_INTERVAL: Duration = Duration::from_mins(1);
@@ -56,7 +57,26 @@ impl ApiClient {
         Ok(Self { client })
     }
 
-    async fn get_all_items<T>(&self, url_path: &str) -> Result<Vec<T>>
+    fn build_get(
+        &self,
+        url: String,
+        access_key: Option<&str>,
+    ) -> Result<reqwest_middleware::RequestBuilder> {
+        let mut req = self.client.get(url);
+        if let Some(key) = access_key {
+            let mut header = reqwest::header::HeaderValue::from_str(key)?;
+            header.set_sensitive(true);
+            req = req.header(ACCESS_KEY_HEADER, header);
+        }
+        Ok(req)
+    }
+
+    async fn get_all_items<T>(
+        &self,
+        base_url: &str,
+        url_path: &str,
+        access_key: Option<&str>,
+    ) -> Result<Vec<T>>
     where
         T: DeserializeOwned,
     {
@@ -65,10 +85,12 @@ impl ApiClient {
 
         loop {
             let mut page = self
-                .client
-                .get(format!(
-                    "{API_BASE_URL}/{url_path}?page={page_num}&perPage={ITEMS_PER_PAGE}"
-                ))
+                .build_get(
+                    format!(
+                        "{base_url}/{url_path}?page={page_num}&perPage={ITEMS_PER_PAGE}"
+                    ),
+                    access_key,
+                )?
                 .send()
                 .await?
                 .error_for_status()?
@@ -87,12 +109,16 @@ impl ApiClient {
         Ok(items)
     }
 
-    async fn get_single<T>(&self, url_path: &str) -> Result<T>
+    async fn get_single<T>(
+        &self,
+        base_url: &str,
+        url_path: &str,
+        access_key: Option<&str>,
+    ) -> Result<T>
     where
         T: DeserializeOwned,
     {
-        self.client
-            .get(format!("{API_BASE_URL}/{url_path}"))
+        self.build_get(format!("{base_url}/{url_path}"), access_key)?
             .send()
             .await?
             .error_for_status()?
@@ -101,13 +127,16 @@ impl ApiClient {
             .map_err(Into::into)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn get_entity_statistics<I, T>(
         &self,
+        base_url: &str,
         url_path: &str,
         id: I,
         stats_path: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
+        access_key: Option<&str>,
     ) -> Result<T>
     where
         I: ToString + Display + tracing::Value,
@@ -116,19 +145,27 @@ impl ApiClient {
         let from_date = from_date.format(DATE_FORMAT).to_string();
         let to_date = to_date.format(DATE_FORMAT).to_string();
         debug!(
+            base_url,
             url_path,
-            id, stats_path, from_date, to_date, "Fetching statistics"
+            id,
+            stats_path,
+            from_date,
+            to_date,
+            "Fetching statistics"
         );
 
-        self.get_single::<T>(&format!(
-            "{url_path}/{id}/{stats_path}?dateFrom={from_date}&dateTo={to_date}"
-        ))
+        self.get_single::<T>(
+            base_url,
+            &format!("{url_path}/{id}/{stats_path}?dateFrom={from_date}&dateTo={to_date}"),
+            access_key,
+        )
         .await
     }
 
     pub async fn list_dns_zones(&self) -> Result<Vec<DnsZone>> {
         debug!("Fetching list of DNS zones");
-        self.get_all_items::<DnsZone>("dnszone").await
+        self.get_all_items::<DnsZone>(API_BASE_URL, "dnszone", None)
+            .await
     }
 
     pub async fn get_dns_zone_stats(
@@ -137,13 +174,22 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<DnsZoneStats> {
-        self.get_entity_statistics("dnszone", zone_id, "statistics", from_date, to_date)
-            .await
+        self.get_entity_statistics(
+            API_BASE_URL,
+            "dnszone",
+            zone_id,
+            "statistics",
+            from_date,
+            to_date,
+            None,
+        )
+        .await
     }
 
     pub async fn list_storage_zones(&self) -> Result<Vec<StorageZone>> {
         debug!("Fetching list of storage zones");
-        self.get_all_items::<StorageZone>("storagezone").await
+        self.get_all_items::<StorageZone>(API_BASE_URL, "storagezone", None)
+            .await
     }
 
     pub async fn get_storage_zone_stats(
@@ -152,13 +198,22 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<StorageZoneStats> {
-        self.get_entity_statistics("storagezone", zone_id, "statistics", from_date, to_date)
-            .await
+        self.get_entity_statistics(
+            API_BASE_URL,
+            "storagezone",
+            zone_id,
+            "statistics",
+            from_date,
+            to_date,
+            None,
+        )
+        .await
     }
 
     pub async fn list_video_libraries(&self) -> Result<Vec<VideoLibrary>> {
         debug!("Fetching list of video libraries");
-        self.get_all_items::<VideoLibrary>("videolibrary").await
+        self.get_all_items::<VideoLibrary>(API_BASE_URL, "videolibrary", None)
+            .await
     }
 
     pub async fn get_video_library_transcribing_stats(
@@ -168,11 +223,13 @@ impl ApiClient {
         to_date: NaiveDate,
     ) -> Result<VideoLibraryTranscribingStats> {
         self.get_entity_statistics(
+            API_BASE_URL,
             "videolibrary",
             library_id,
             "transcribing/statistics",
             from_date,
             to_date,
+            None,
         )
         .await
     }
@@ -184,18 +241,40 @@ impl ApiClient {
         to_date: NaiveDate,
     ) -> Result<VideoLibraryDrmStats> {
         self.get_entity_statistics(
+            API_BASE_URL,
             "videolibrary",
             library_id,
             "drm/statistics",
             from_date,
             to_date,
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_video_library_stats(
+        &self,
+        library_id: u64,
+        access_key: Option<&str>,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<VideoLibraryStats> {
+        self.get_entity_statistics(
+            STREAM_API_BASE_URL,
+            "library",
+            library_id,
+            "statistics",
+            from_date,
+            to_date,
+            access_key,
         )
         .await
     }
 
     pub async fn list_pull_zones(&self) -> Result<Vec<PullZone>> {
         debug!("Fetching list of pull zones");
-        self.get_all_items::<PullZone>("pullzone").await
+        self.get_all_items::<PullZone>(API_BASE_URL, "pullzone", None)
+            .await
     }
 
     pub async fn get_pull_zone_stats(
@@ -208,9 +287,13 @@ impl ApiClient {
         let to_date = to_date.format(DATE_FORMAT).to_string();
         debug!(zone_id, from_date, to_date, "Fetching pull zone statistics");
 
-        self.get_single::<PullZoneStats>(&format!(
-            "statistics?dateFrom={from_date}&dateTo={to_date}&pullZone={zone_id}&loadErrors=true&loadOriginResponseTimes=true&loadOriginTraffic=true&loadRequestsServed=true&loadBandwidthUsed=true&loadOriginShieldBandwidth=true&loadGeographicTrafficDistribution=true"
-        ))
+        self.get_single::<PullZoneStats>(
+            API_BASE_URL,
+            &format!(
+                "statistics?dateFrom={from_date}&dateTo={to_date}&pullZone={zone_id}&loadErrors=true&loadOriginResponseTimes=true&loadOriginTraffic=true&loadRequestsServed=true&loadBandwidthUsed=true&loadOriginShieldBandwidth=true&loadGeographicTrafficDistribution=true"
+            ),
+            None,
+        )
         .await
     }
 
@@ -221,11 +304,13 @@ impl ApiClient {
         to_date: NaiveDate,
     ) -> Result<PullZoneOptimizerStats> {
         self.get_entity_statistics(
+            API_BASE_URL,
             "pullzone",
             zone_id,
             "optimizer/statistics",
             from_date,
             to_date,
+            None,
         )
         .await
     }
@@ -237,11 +322,13 @@ impl ApiClient {
         to_date: NaiveDate,
     ) -> Result<PullZoneOriginShieldQueueStats> {
         self.get_entity_statistics(
+            API_BASE_URL,
             "pullzone",
             zone_id,
             "originshield/queuestatistics",
             from_date,
             to_date,
+            None,
         )
         .await
     }
@@ -253,11 +340,13 @@ impl ApiClient {
         to_date: NaiveDate,
     ) -> Result<PullZoneSafeHopStats> {
         self.get_entity_statistics(
+            API_BASE_URL,
             "pullzone",
             zone_id,
             "safehop/statistics",
             from_date,
             to_date,
+            None,
         )
         .await
     }
@@ -323,6 +412,7 @@ pub struct StorageZoneStats {
 pub struct VideoLibrary {
     pub id: u64,
     pub name: String,
+    pub read_only_api_key: String,
 }
 
 impl Display for VideoLibrary {
@@ -345,6 +435,21 @@ pub type LicensesIssuedChart = HashMap<String, f64>;
 #[serde(rename_all = "PascalCase")]
 pub struct VideoLibraryDrmStats {
     pub licenses_issued_chart: LicensesIssuedChart,
+}
+
+pub type ViewsChart = HashMap<String, u64>;
+pub type WatchTimeChart = HashMap<String, u64>;
+pub type CountryViewCounts = HashMap<String, u64>;
+pub type CountryWatchTime = HashMap<String, u64>;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[allow(clippy::struct_field_names)]
+pub struct VideoLibraryStats {
+    pub views_chart: ViewsChart,
+    pub watch_time_chart: WatchTimeChart,
+    pub country_view_counts: CountryViewCounts,
+    pub country_watch_time: CountryWatchTime,
 }
 
 #[derive(Deserialize)]
