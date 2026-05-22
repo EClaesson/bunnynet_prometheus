@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::{self, Display};
+use std::fmt::Display;
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
@@ -567,12 +567,6 @@ pub struct DnsZone {
     pub domain: String,
 }
 
-impl Display for DnsZone {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.domain, self.id)
-    }
-}
-
 type QueriesServedChart = HashMap<String, f64>;
 pub type QueriesByTypeChart = HashMap<String, u64>;
 
@@ -592,12 +586,6 @@ pub struct StorageZone {
     pub name: String,
 }
 
-impl Display for StorageZone {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.name, self.id)
-    }
-}
-
 pub type StorageUsedChart = HashMap<String, u64>;
 pub type FileCountChart = HashMap<String, u64>;
 
@@ -614,12 +602,6 @@ pub struct VideoLibrary {
     pub id: u64,
     pub name: String,
     pub read_only_api_key: String,
-}
-
-impl Display for VideoLibrary {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.name, self.id)
-    }
 }
 
 pub type TranscriptionSecondsChart = HashMap<String, f64>;
@@ -659,12 +641,6 @@ pub struct Application {
     pub name: String,
 }
 
-impl Display for Application {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.name, self.id)
-    }
-}
-
 pub type ApplicationFloatChart = HashMap<String, f64>;
 pub type ApplicationNullableFloatChart = HashMap<String, Option<f64>>;
 pub type ApplicationVolumeChart = HashMap<String, ApplicationFloatChart>;
@@ -691,12 +667,6 @@ pub struct EdgeScript {
     pub name: String,
 }
 
-impl Display for EdgeScript {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.name, self.id)
-    }
-}
-
 pub type EdgeScriptRequestsServedChart = HashMap<String, f64>;
 pub type EdgeScriptAverageCpuTimeChart = HashMap<String, f64>;
 pub type EdgeScriptTotalCpuTimeChart = HashMap<String, f64>;
@@ -715,15 +685,6 @@ pub struct EdgeScriptStats {
 pub struct ShieldZone {
     pub shield_zone_id: u64,
     pub pull_zone_id: Option<u64>,
-}
-
-impl Display for ShieldZone {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.pull_zone_id {
-            Some(pz) => write!(f, "shield zone {} (pull zone {pz})", self.shield_zone_id),
-            None => write!(f, "shield zone {}", self.shield_zone_id),
-        }
-    }
 }
 
 pub type ShieldMetricChart = HashMap<String, u64>;
@@ -752,12 +713,6 @@ pub struct ShieldMetrics {
 pub struct PullZone {
     pub id: u64,
     pub name: String,
-}
-
-impl Display for PullZone {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.name, self.id)
-    }
 }
 
 pub type RequestsOptimizedChart = HashMap<String, u64>;

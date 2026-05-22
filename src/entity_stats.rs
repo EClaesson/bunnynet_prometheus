@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -21,7 +20,7 @@ pub trait DayData: Default + Serialize + DeserializeOwned + Send {
 }
 
 pub trait EntityType: Sized + Send + Sync + 'static {
-    type Entity: Display + Send + Sync;
+    type Entity: Send + Sync;
     type DayData: DayData;
 
     const LOG_LABEL: &'static str;
