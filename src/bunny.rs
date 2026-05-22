@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display};
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -19,6 +20,8 @@ const DATE_FORMAT: &str = "%Y-%m-%d";
 
 pub struct ApiClient {
     client: reqwest_middleware::ClientWithMiddleware,
+    pull_zones_cache: Mutex<Option<Vec<PullZone>>>,
+    video_libraries_cache: Mutex<Option<Vec<VideoLibrary>>>,
 }
 
 impl ApiClient {
@@ -54,7 +57,16 @@ impl ApiClient {
             ))
             .build();
 
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            pull_zones_cache: Mutex::new(None),
+            video_libraries_cache: Mutex::new(None),
+        })
+    }
+
+    pub fn clear_cycle_cache(&self) {
+        clear_list_cache(&self.pull_zones_cache);
+        clear_list_cache(&self.video_libraries_cache);
     }
 
     fn build_get(
@@ -274,9 +286,16 @@ impl ApiClient {
     }
 
     pub async fn list_video_libraries(&self) -> Result<Vec<VideoLibrary>> {
+        if let Some(cached) = read_list_cache(&self.video_libraries_cache) {
+            debug!("Reusing cached video libraries");
+            return Ok(cached);
+        }
         debug!("Fetching list of video libraries");
-        self.get_all_items::<VideoLibrary>(API_BASE_URL, "videolibrary", None)
-            .await
+        let libraries = self
+            .get_all_items::<VideoLibrary>(API_BASE_URL, "videolibrary", None)
+            .await?;
+        write_list_cache(&self.video_libraries_cache, &libraries);
+        Ok(libraries)
     }
 
     pub async fn get_video_library_transcribing_stats(
@@ -335,9 +354,16 @@ impl ApiClient {
     }
 
     pub async fn list_pull_zones(&self) -> Result<Vec<PullZone>> {
+        if let Some(cached) = read_list_cache(&self.pull_zones_cache) {
+            debug!("Reusing cached pull zones");
+            return Ok(cached);
+        }
         debug!("Fetching list of pull zones");
-        self.get_all_items::<PullZone>(API_BASE_URL, "pullzone", None)
-            .await
+        let zones = self
+            .get_all_items::<PullZone>(API_BASE_URL, "pullzone", None)
+            .await?;
+        write_list_cache(&self.pull_zones_cache, &zones);
+        Ok(zones)
     }
 
     pub async fn get_pull_zone_stats(
@@ -488,6 +514,22 @@ impl ApiClient {
     }
 }
 
+fn read_list_cache<T: Clone>(cache: &Mutex<Option<Vec<T>>>) -> Option<Vec<T>> {
+    cache
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .cloned()
+}
+
+fn write_list_cache<T: Clone>(cache: &Mutex<Option<Vec<T>>>, value: &[T]) {
+    *cache.lock().unwrap_or_else(PoisonError::into_inner) = Some(value.to_vec());
+}
+
+fn clear_list_cache<T>(cache: &Mutex<Option<Vec<T>>>) {
+    *cache.lock().unwrap_or_else(PoisonError::into_inner) = None;
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct Page<T> {
@@ -566,7 +608,7 @@ pub struct StorageZoneStats {
     pub file_count_chart: FileCountChart,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct VideoLibrary {
     pub id: u64,
@@ -705,7 +747,7 @@ pub struct ShieldMetrics {
     pub total_billable_requests_this_month: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct PullZone {
     pub id: u64,

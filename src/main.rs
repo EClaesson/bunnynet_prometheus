@@ -155,6 +155,8 @@ async fn start_poller_loop(
                     elapsed_seconds = cycle_start.elapsed().as_secs_f64(),
                     "Poll cycle complete",
                 );
+
+                client.clear_cycle_cache();
             }
             () = &mut shutdown => {
                 info!("Shutdown signal received, exiting");
