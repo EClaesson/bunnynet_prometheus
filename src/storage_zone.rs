@@ -1,6 +1,6 @@
 use anyhow::Context;
 use chrono::NaiveDate;
-use metrics::counter;
+use metrics::gauge;
 use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, StorageZone};
@@ -53,13 +53,12 @@ impl EntityType for StorageZoneKind {
         })
     }
 
-    fn emit_metrics(id: &str, name: &str, last: &StorageDayData, current: &StorageDayData) {
+    #[allow(clippy::cast_precision_loss)]
+    fn emit_metrics(id: &str, name: &str, _last: &StorageDayData, current: &StorageDayData) {
         let labels = [("zone_id", id.to_string()), ("name", name.to_string())];
 
-        counter!("bunnynet.storage_zone.storage_used", &labels)
-            .absolute(last.storage_used + current.storage_used);
-        counter!("bunnynet.storage_zone.file_count", &labels)
-            .absolute(last.file_count + current.file_count);
+        gauge!("bunnynet.storage_zone.storage_used", &labels).set(current.storage_used as f64);
+        gauge!("bunnynet.storage_zone.file_count", &labels).set(current.file_count as f64);
     }
 }
 
@@ -70,13 +69,10 @@ pub struct StorageDayData {
 }
 
 impl DayData for StorageDayData {
-    fn accumulate(&mut self, day: Self) {
-        self.storage_used += day.storage_used;
-        self.file_count += day.file_count;
-    }
+    fn accumulate(&mut self, _day: Self) {}
 
     fn merge_latest(&mut self, snap: Self) {
-        self.storage_used = self.storage_used.max(snap.storage_used);
-        self.file_count = self.file_count.max(snap.file_count);
+        self.storage_used = snap.storage_used;
+        self.file_count = snap.file_count;
     }
 }

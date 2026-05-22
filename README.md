@@ -107,10 +107,10 @@ These metrics are always enabled and expose the health and age of the collectors
 
 ### storage_zone
 
-| Name                                 | Type    | Tags          |
-| ------------------------------------ | ------- | ------------- |
-| `bunnynet_storage_zone_storage_used` | Counter | zone_id, name |
-| `bunnynet_storage_zone_file_count`   | Counter | zone_id, name |
+| Name                                 | Type  | Tags          |
+| ------------------------------------ | ----- | ------------- |
+| `bunnynet_storage_zone_storage_used` | Gauge | zone_id, name |
+| `bunnynet_storage_zone_file_count`   | Gauge | zone_id, name |
 
 ### video_library
 
