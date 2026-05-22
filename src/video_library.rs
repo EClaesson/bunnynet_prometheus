@@ -21,7 +21,7 @@ impl EntityType for VideoLibraryKind {
     type Entity = VideoLibrary;
     type DayData = VideoLibraryDayData;
 
-    const LOG_LABEL: &'static str = "Video library";
+    const LOG_LABEL: &'static str = "video_library";
 
     fn entity_id(entity: &VideoLibrary) -> String {
         entity.id.to_string()

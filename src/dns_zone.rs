@@ -21,7 +21,7 @@ impl EntityType for DnsZoneKind {
     type Entity = DnsZone;
     type DayData = DnsDayData;
 
-    const LOG_LABEL: &'static str = "DNS zone";
+    const LOG_LABEL: &'static str = "dns_zone";
 
     fn entity_id(entity: &DnsZone) -> String {
         entity.id.to_string()

@@ -5,7 +5,7 @@ use std::pin::Pin;
 
 use anyhow::Result;
 use serde::de::DeserializeOwned;
-use tracing::{debug, warn};
+use tracing::{debug, info};
 
 use crate::bunny::ApiClient;
 
@@ -25,9 +25,9 @@ where
     match std::fs::read_to_string(&path) {
         Ok(json) => Ok(serde_json::from_str(&json)?),
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            warn!(
+            info!(
                 path = %path.display(),
-                "State file not found. Creating blank state."
+                "No prior state found, starting fresh"
             );
             Ok(T::default())
         }

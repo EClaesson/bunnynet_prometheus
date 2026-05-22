@@ -19,7 +19,7 @@ impl EntityType for PullZoneSafeHopKind {
     type Entity = PullZone;
     type DayData = PullZoneSafeHopDayData;
 
-    const LOG_LABEL: &'static str = "Pull zone SafeHop";
+    const LOG_LABEL: &'static str = "pull_zone_safehop";
 
     fn entity_id(entity: &PullZone) -> String {
         entity.id.to_string()

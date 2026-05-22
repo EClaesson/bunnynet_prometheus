@@ -23,7 +23,7 @@ impl EntityType for PullZoneOptimizerKind {
     type Entity = PullZone;
     type DayData = PullZoneOptimizerDayData;
 
-    const LOG_LABEL: &'static str = "Pull zone optimizer";
+    const LOG_LABEL: &'static str = "pull_zone_optimizer";
 
     fn entity_id(entity: &PullZone) -> String {
         entity.id.to_string()

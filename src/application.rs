@@ -28,7 +28,7 @@ impl EntityType for ApplicationKind {
     type Entity = Application;
     type DayData = ApplicationDayData;
 
-    const LOG_LABEL: &'static str = "Application";
+    const LOG_LABEL: &'static str = "application";
 
     fn entity_id(entity: &Application) -> String {
         entity.id.clone()

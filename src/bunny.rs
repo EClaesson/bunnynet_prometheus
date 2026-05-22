@@ -211,20 +211,11 @@ impl ApiClient {
         access_key: Option<&str>,
     ) -> Result<T>
     where
-        I: ToString + Display + tracing::Value,
+        I: Display,
         T: DeserializeOwned,
     {
         let from_date = from_date.format(DATE_FORMAT).to_string();
         let to_date = to_date.format(DATE_FORMAT).to_string();
-        debug!(
-            base_url,
-            url_path,
-            id,
-            stats_path,
-            from_date,
-            to_date,
-            "Fetching statistics"
-        );
 
         self.get_single::<T>(
             base_url,
@@ -357,7 +348,6 @@ impl ApiClient {
     ) -> Result<PullZoneStats> {
         let from_date = from_date.format(DATE_FORMAT).to_string();
         let to_date = to_date.format(DATE_FORMAT).to_string();
-        debug!(zone_id, from_date, to_date, "Fetching pull zone statistics");
 
         self.get_single::<PullZoneStats>(
             API_BASE_URL,
@@ -437,10 +427,6 @@ impl ApiClient {
     ) -> Result<ApplicationStats> {
         let from_date = from_date.format(DATE_FORMAT).to_string();
         let to_date = to_date.format(DATE_FORMAT).to_string();
-        debug!(
-            app_id, from_date, to_date,
-            "Fetching application statistics"
-        );
 
         self.get_single::<ApplicationStats>(
             API_BASE_URL,
@@ -488,7 +474,6 @@ impl ApiClient {
         from_date: NaiveDate,
     ) -> Result<ShieldMetrics> {
         let from_date = from_date.format(DATE_FORMAT).to_string();
-        debug!(shield_zone_id, from_date, "Fetching shield zone metrics");
 
         let wrapper = self
             .get_single::<DataEnvelope<ShieldMetrics>>(

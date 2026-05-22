@@ -19,7 +19,7 @@ impl EntityType for StorageZoneKind {
     type Entity = StorageZone;
     type DayData = StorageDayData;
 
-    const LOG_LABEL: &'static str = "storage zone";
+    const LOG_LABEL: &'static str = "storage_zone";
 
     fn entity_id(entity: &StorageZone) -> String {
         entity.id.to_string()

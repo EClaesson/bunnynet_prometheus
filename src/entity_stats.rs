@@ -6,7 +6,7 @@ use std::pin::Pin;
 use anyhow::{Result, bail};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::bunny::ApiClient;
 use crate::state::{PollFuture, State};
@@ -46,12 +46,15 @@ pub trait EntityType: Sized + Send + Sync + 'static {
 ))]
 pub struct EntityStatsState<E: EntityType> {
     entities: HashMap<String, EntityEntry<E>>,
+    #[serde(skip)]
+    last_entity_count: Option<usize>,
 }
 
 impl<E: EntityType> Default for EntityStatsState<E> {
     fn default() -> Self {
         Self {
             entities: HashMap::new(),
+            last_entity_count: None,
         }
     }
 }
@@ -83,27 +86,57 @@ impl<E: EntityType> Default for EntityEntry<E> {
 impl<E: EntityType> State for EntityStatsState<E> {
     fn poll<'a>(&'a mut self, client: &'a ApiClient) -> PollFuture<'a> {
         Box::pin(async move {
-            debug!(kind = E::LOG_LABEL, "Polling stats");
+            debug!(collector = E::LOG_LABEL, "Polling stats");
             let today = chrono::Utc::now().date_naive();
             let yesterday = today - chrono::Days::new(1);
 
             let entities = E::list(client).await?;
+            let count = entities.len();
+
+            match self.last_entity_count {
+                None => info!(
+                    collector = E::LOG_LABEL,
+                    count,
+                    "Monitoring entities",
+                ),
+                Some(prev) if prev != count => info!(
+                    collector = E::LOG_LABEL,
+                    previous = prev,
+                    current = count,
+                    "Entity count changed",
+                ),
+                _ => {}
+            }
+            self.last_entity_count = Some(count);
 
             for entity in &entities {
                 let id = E::entity_id(entity);
-                let entry = self.entities.entry(id).or_default();
-                entry.label = E::entity_label(entity);
+                let label = E::entity_label(entity);
+                let entry = self.entities.entry(id.clone()).or_default();
+                entry.label.clone_from(&label);
 
                 if let Some(last) = entry.last_complete_day
                     && last < yesterday
                 {
-                    let mut cursor = last + chrono::TimeDelta::days(1);
+                    let first = last + chrono::TimeDelta::days(1);
+                    let days = (yesterday - last).num_days();
+                    info!(
+                        collector = E::LOG_LABEL,
+                        entity_id = %id,
+                        entity_label = %label,
+                        from = %first,
+                        to = %yesterday,
+                        days,
+                        "Backfilling missed days",
+                    );
+                    let mut cursor = first;
                     while cursor <= yesterday {
                         debug!(
-                            kind = E::LOG_LABEL,
-                            entity = %entity,
+                            collector = E::LOG_LABEL,
+                            entity_id = %id,
+                            entity_label = %label,
                             date = %cursor,
-                            "Backfilling stats",
+                            "Fetching day (backfill)",
                         );
                         let day = E::fetch_day(client, entity, cursor).await?;
                         entry.last_complete_day_state.accumulate(day);
@@ -116,10 +149,11 @@ impl<E: EntityType> State for EntityStatsState<E> {
                 }
 
                 debug!(
-                    kind = E::LOG_LABEL,
-                    entity = %entity,
+                    collector = E::LOG_LABEL,
+                    entity_id = %id,
+                    entity_label = %label,
                     date = %today,
-                    "Refreshing current-day stats",
+                    "Fetching day (current)",
                 );
                 let snap = E::fetch_day(client, entity, today).await?;
                 entry.current_day_state.merge_latest(snap);

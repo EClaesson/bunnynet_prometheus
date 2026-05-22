@@ -19,7 +19,7 @@ impl EntityType for PullZoneOriginShieldQueueKind {
     type Entity = PullZone;
     type DayData = PullZoneOriginShieldQueueDayData;
 
-    const LOG_LABEL: &'static str = "Pull zone origin shield queue";
+    const LOG_LABEL: &'static str = "pull_zone_origin_shield_queue";
 
     fn entity_id(entity: &PullZone) -> String {
         entity.id.to_string()

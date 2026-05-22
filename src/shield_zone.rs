@@ -26,7 +26,7 @@ impl EntityType for ShieldZoneKind {
     type Entity = ShieldZone;
     type DayData = ShieldZoneDayData;
 
-    const LOG_LABEL: &'static str = "Shield zone";
+    const LOG_LABEL: &'static str = "shield_zone";
 
     fn entity_id(entity: &ShieldZone) -> String {
         entity.shield_zone_id.to_string()

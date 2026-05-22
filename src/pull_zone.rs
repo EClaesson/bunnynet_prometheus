@@ -31,7 +31,7 @@ impl EntityType for PullZoneKind {
     type Entity = PullZone;
     type DayData = PullZoneDayData;
 
-    const LOG_LABEL: &'static str = "Pull zone";
+    const LOG_LABEL: &'static str = "pull_zone";
 
     fn entity_id(entity: &PullZone) -> String {
         entity.id.to_string()

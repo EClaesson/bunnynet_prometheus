@@ -55,7 +55,7 @@ async fn main() -> std::process::ExitCode {
     match run_server(&args).await {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(e) => {
-            error!("{e:#}");
+            error!("Server failed: {e:#}");
             std::process::ExitCode::FAILURE
         }
     }
@@ -107,39 +107,54 @@ async fn start_poller_loop(
         .map(|c| c.load_state(state_dir).map(|s| (*c, s)))
         .collect::<Result<_>>()?;
 
+    let enabled: Vec<&str> = collectors.iter().map(|c| c.name()).collect();
     info!(
-        poll_interval = poll_interval.as_secs(),
+        poll_interval_seconds = poll_interval.as_secs(),
+        state_dir = %state_dir.display(),
+        collectors = enabled.join(","),
         "Starting bunny.net poller"
     );
     let mut interval = tokio::time::interval(poll_interval);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut shutdown = std::pin::pin!(shutdown_signal());
+    let mut cycle: u64 = 0;
 
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                debug!("Executing all pollers");
-                let mut any_failure = false;
+                cycle += 1;
+                let cycle_start = std::time::Instant::now();
+                debug!(cycle, "Poll cycle starting");
+                let total = states.len();
+                let mut succeeded: usize = 0;
 
                 for (collector, state) in &mut states {
                     if let Err(e) = state.poll(client).await {
-                        error!(collector = ?collector, "Poll failed: {e:#}");
-                        any_failure = true;
+                        error!(collector = collector.name(), "Poll failed: {e:#}");
                         continue;
                     }
 
                     if let Err(e) = collector.save_state(state.as_ref(), state_dir) {
-                        warn!(collector = ?collector, "Failed to save state. Metrics may be incorrect after program restart: {e:#}");
-                        any_failure = true;
+                        warn!(collector = collector.name(), "Failed to save state. Metrics may be incorrect after program restart: {e:#}");
+                    } else {
+                        succeeded += 1;
                     }
 
                     gauge!("bunnynet.last_collector_update.timestamp_seconds", "collector" => collector.name()).set(now());
                 }
 
                 gauge!("bunnynet.last_update_attempt.timestamp_seconds").set(now());
-                if !any_failure {
+                if succeeded == total {
                     gauge!("bunnynet.last_successful_update.timestamp_seconds").set(now());
                 }
+
+                debug!(
+                    cycle,
+                    succeeded,
+                    total,
+                    elapsed_seconds = cycle_start.elapsed().as_secs_f64(),
+                    "Poll cycle complete",
+                );
             }
             () = &mut shutdown => {
                 info!("Shutdown signal received, exiting");

@@ -20,7 +20,7 @@ impl EntityType for EdgeScriptKind {
     type Entity = EdgeScript;
     type DayData = EdgeScriptDayData;
 
-    const LOG_LABEL: &'static str = "Edge script";
+    const LOG_LABEL: &'static str = "edge_script";
 
     fn entity_id(entity: &EdgeScript) -> String {
         entity.id.to_string()
