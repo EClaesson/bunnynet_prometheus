@@ -85,25 +85,25 @@ These metrics are always enabled and expose the health and age of the collectors
 | `bunnynet_application_instances`       | Gauge   | app_id, name         |
 | `bunnynet_application_cpu_usage`       | Gauge   | app_id, name         |
 | `bunnynet_application_ram_usage`       | Gauge   | app_id, name         |
-| `bunnynet_application_traffic`         | Counter | app_id, name         |
+| `bunnynet_application_traffic_total`   | Counter | app_id, name         |
 | `bunnynet_application_volume_usage`    | Gauge   | app_id, name, volume |
 | `bunnynet_application_volume_capacity` | Gauge   | app_id, name, volume |
 
 ### dns_zone
 
-| Name                                | Type    | Tags                  |
-| ----------------------------------- | ------- | --------------------- |
-| `bunnynet_dns_zone_normal_queries`  | Counter | zone_id, domain       |
-| `bunnynet_dns_zone_smart_queries`   | Counter | zone_id, domain       |
-| `bunnynet_dns_zone_queries_by_type` | Counter | zone_id, domain, type |
+| Name                                      | Type    | Tags                  |
+| ----------------------------------------- | ------- | --------------------- |
+| `bunnynet_dns_zone_normal_queries_total`  | Counter | zone_id, domain       |
+| `bunnynet_dns_zone_smart_queries_total`   | Counter | zone_id, domain       |
+| `bunnynet_dns_zone_queries_by_type_total` | Counter | zone_id, domain, type |
 
 ### edge_script
 
-| Name                                    | Type    | Tags            |
-| --------------------------------------- | ------- | --------------- |
-| `bunnynet_edge_script_requests_served`  | Counter | script_id, name |
-| `bunnynet_edge_script_cpu_time`         | Counter | script_id, name |
-| `bunnynet_edge_script_average_cpu_time` | Gauge   | script_id, name |
+| Name                                         | Type    | Tags            |
+| -------------------------------------------- | ------- | --------------- |
+| `bunnynet_edge_script_requests_served_total` | Counter | script_id, name |
+| `bunnynet_edge_script_cpu_time_total`        | Counter | script_id, name |
+| `bunnynet_edge_script_average_cpu_time`      | Gauge   | script_id, name |
 
 ### storage_zone
 
@@ -114,51 +114,51 @@ These metrics are always enabled and expose the health and age of the collectors
 
 ### video_library
 
-| Name                                        | Type    | Tags                      |
-| ------------------------------------------- | ------- | ------------------------- |
-| `bunnynet_video_library_views`              | Counter | library_id, name          |
-| `bunnynet_video_library_watch_time`         | Counter | library_id, name          |
-| `bunnynet_video_library_country_views`      | Counter | library_id, name, country |
-| `bunnynet_video_library_country_watch_time` | Counter | library_id, name, country |
+| Name                                              | Type    | Tags                      |
+| ------------------------------------------------- | ------- | ------------------------- |
+| `bunnynet_video_library_views_total`              | Counter | library_id, name          |
+| `bunnynet_video_library_watch_time_total`         | Counter | library_id, name          |
+| `bunnynet_video_library_country_views_total`      | Counter | library_id, name, country |
+| `bunnynet_video_library_country_watch_time_total` | Counter | library_id, name, country |
 
 ### video_library_drm
 
-| Name                                         | Type    | Tags             |
-| -------------------------------------------- | ------- | ---------------- |
-| `bunnynet_video_library_drm_licenses_issued` | Counter | library_id, name |
+| Name                                               | Type    | Tags             |
+| -------------------------------------------------- | ------- | ---------------- |
+| `bunnynet_video_library_drm_licenses_issued_total` | Counter | library_id, name |
 
 ### video_library_transcribing
 
-| Name                                          | Type    | Tags             |
-| --------------------------------------------- | ------- | ---------------- |
-| `bunnynet_video_library_transcribing_seconds` | Counter | library_id, name |
+| Name                                                | Type    | Tags             |
+| --------------------------------------------------- | ------- | ---------------- |
+| `bunnynet_video_library_transcribing_seconds_total` | Counter | library_id, name |
 
 ### pull_zone
 
-| Name                                                       | Type    | Tags                  |
-| ---------------------------------------------------------- | ------- | --------------------- |
-| `bunnynet_pull_zone_bandwidth_used`                        | Counter | zone_id, name         |
-| `bunnynet_pull_zone_bandwidth_cached`                      | Counter | zone_id, name         |
-| `bunnynet_pull_zone_requests_served`                       | Counter | zone_id, name         |
-| `bunnynet_pull_zone_pull_requests_pulled`                  | Counter | zone_id, name         |
-| `bunnynet_pull_zone_origin_shield_bandwidth_used`          | Counter | zone_id, name         |
-| `bunnynet_pull_zone_origin_shield_internal_bandwidth_used` | Counter | zone_id, name         |
-| `bunnynet_pull_zone_origin_traffic`                        | Counter | zone_id, name         |
-| `bunnynet_pull_zone_errors_3xx`                            | Counter | zone_id, name         |
-| `bunnynet_pull_zone_errors_4xx`                            | Counter | zone_id, name         |
-| `bunnynet_pull_zone_errors_5xx`                            | Counter | zone_id, name         |
-| `bunnynet_pull_zone_origin_response_time`                  | Gauge   | zone_id, name         |
-| `bunnynet_pull_zone_cache_hit_rate`                        | Gauge   | zone_id, name         |
-| `bunnynet_pull_zone_geo_traffic`                           | Counter | zone_id, name, region |
+| Name                                                             | Type    | Tags                  |
+| ---------------------------------------------------------------- | ------- | --------------------- |
+| `bunnynet_pull_zone_bandwidth_used_total`                        | Counter | zone_id, name         |
+| `bunnynet_pull_zone_bandwidth_cached_total`                      | Counter | zone_id, name         |
+| `bunnynet_pull_zone_requests_served_total`                       | Counter | zone_id, name         |
+| `bunnynet_pull_zone_pull_requests_pulled_total`                  | Counter | zone_id, name         |
+| `bunnynet_pull_zone_origin_shield_bandwidth_used_total`          | Counter | zone_id, name         |
+| `bunnynet_pull_zone_origin_shield_internal_bandwidth_used_total` | Counter | zone_id, name         |
+| `bunnynet_pull_zone_origin_traffic_total`                        | Counter | zone_id, name         |
+| `bunnynet_pull_zone_errors_3xx_total`                            | Counter | zone_id, name         |
+| `bunnynet_pull_zone_errors_4xx_total`                            | Counter | zone_id, name         |
+| `bunnynet_pull_zone_errors_5xx_total`                            | Counter | zone_id, name         |
+| `bunnynet_pull_zone_origin_response_time`                        | Gauge   | zone_id, name         |
+| `bunnynet_pull_zone_cache_hit_rate`                              | Gauge   | zone_id, name         |
+| `bunnynet_pull_zone_geo_traffic_total`                           | Counter | zone_id, name, region |
 
 ### pull_zone_optimizer
 
-| Name                                                   | Type    | Tags          |
-| ------------------------------------------------------ | ------- | ------------- |
-| `bunnynet_pull_zone_optimizer_requests_optimized`      | Counter | zone_id, name |
-| `bunnynet_pull_zone_optimizer_traffic_saved`           | Counter | zone_id, name |
-| `bunnynet_pull_zone_optimizer_average_compression`     | Gauge   | zone_id, name |
-| `bunnynet_pull_zone_optimizer_average_processing_time` | Gauge   | zone_id, name |
+| Name                                                    | Type    | Tags          |
+| ------------------------------------------------------- | ------- | ------------- |
+| `bunnynet_pull_zone_optimizer_requests_optimized_total` | Counter | zone_id, name |
+| `bunnynet_pull_zone_optimizer_traffic_saved_total`      | Counter | zone_id, name |
+| `bunnynet_pull_zone_optimizer_average_compression`      | Gauge   | zone_id, name |
+| `bunnynet_pull_zone_optimizer_average_processing_time`  | Gauge   | zone_id, name |
 
 ### pull_zone_origin_shield_queue
 
@@ -169,15 +169,15 @@ These metrics are always enabled and expose the health and age of the collectors
 
 ### pull_zone_safehop
 
-| Name                                          | Type    | Tags          |
-| --------------------------------------------- | ------- | ------------- |
-| `bunnynet_pull_zone_safehop_requests_retried` | Counter | zone_id, name |
-| `bunnynet_pull_zone_safehop_requests_saved`   | Counter | zone_id, name |
+| Name                                                | Type    | Tags          |
+| --------------------------------------------------- | ------- | ------------- |
+| `bunnynet_pull_zone_safehop_requests_retried_total` | Counter | zone_id, name |
+| `bunnynet_pull_zone_safehop_requests_saved_total`   | Counter | zone_id, name |
 
 ### shield_zone
 
 | Name                                                | Type    | Tags                                           |
 | --------------------------------------------------- | ------- | ---------------------------------------------- |
-| `bunnynet_shield_zone_requests`                     | Counter | shield_zone_id, pull_zone_id, category, action |
+| `bunnynet_shield_zone_requests_total`               | Counter | shield_zone_id, pull_zone_id, category, action |
 | `bunnynet_shield_zone_clean_requests_limit`         | Gauge   | shield_zone_id, pull_zone_id                   |
 | `bunnynet_shield_zone_billable_requests_this_month` | Gauge   | shield_zone_id, pull_zone_id                   |
