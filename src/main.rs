@@ -193,24 +193,25 @@ async fn shutdown_signal() {
 }
 
 fn resolve_access_key(args: &CliArgs) -> Result<String> {
-    if let Some(access_key) = &args.access_key {
+    let raw = if let Some(key) = &args.access_key {
         debug!("Read access key from cli parameter");
-        return Ok(access_key.clone());
-    }
-
-    if let Some(path) = &args.access_key_file {
-        let access_key =
-            std::fs::read_to_string(path).context("Failed to read access key from file")?;
+        key.clone()
+    } else if let Some(path) = &args.access_key_file {
         debug!("Read access key from file");
-        return Ok(access_key.trim().to_string());
-    }
-
-    if let Ok(access_key) = std::env::var(ENV_ACCESS_KEY) {
+        std::fs::read_to_string(path).context("Failed to read access key from file")?
+    } else if let Ok(key) = std::env::var(ENV_ACCESS_KEY) {
         debug!("Read access key from env");
-        return Ok(access_key.trim().to_string());
+        key
+    } else {
+        bail!("No Bunny.net API access key specified. Run with --help to show help.");
+    };
+
+    let key = raw.trim();
+    if key.is_empty() {
+        bail!("Bunny.net API access key is empty");
     }
 
-    bail!("No Bunny.net API access key specified. Run with --help to show help.");
+    Ok(key.to_string())
 }
 
 fn now() -> f64 {
