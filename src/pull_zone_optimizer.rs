@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use chrono::NaiveDate;
@@ -33,7 +34,7 @@ impl EntityType for PullZoneOptimizerKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<PullZone>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
         Box::pin(async move { client.list_pull_zones().await })
     }
 

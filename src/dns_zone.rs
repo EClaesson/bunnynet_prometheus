@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use anyhow::Context;
 use chrono::NaiveDate;
@@ -31,7 +32,7 @@ impl EntityType for DnsZoneKind {
         entity.domain.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<DnsZone>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<DnsZone>>> {
         Box::pin(async move { client.list_dns_zones().await })
     }
 

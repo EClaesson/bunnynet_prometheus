@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -20,8 +20,8 @@ const DATE_FORMAT: &str = "%Y-%m-%d";
 
 pub struct ApiClient {
     client: reqwest_middleware::ClientWithMiddleware,
-    pull_zones_cache: Mutex<Option<Vec<PullZone>>>,
-    video_libraries_cache: Mutex<Option<Vec<VideoLibrary>>>,
+    pull_zones_cache: Mutex<Option<Arc<Vec<PullZone>>>>,
+    video_libraries_cache: Mutex<Option<Arc<Vec<VideoLibrary>>>>,
 }
 
 impl ApiClient {
@@ -237,10 +237,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_dns_zones(&self) -> Result<Vec<DnsZone>> {
+    pub async fn list_dns_zones(&self) -> Result<Arc<Vec<DnsZone>>> {
         debug!("Fetching list of DNS zones");
         self.get_all_items::<DnsZone>(API_BASE_URL, "dnszone", None)
             .await
+            .map(Arc::new)
     }
 
     pub async fn get_dns_zone_stats(
@@ -261,10 +262,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_storage_zones(&self) -> Result<Vec<StorageZone>> {
+    pub async fn list_storage_zones(&self) -> Result<Arc<Vec<StorageZone>>> {
         debug!("Fetching list of storage zones");
         self.get_all_items::<StorageZone>(API_BASE_URL, "storagezone", None)
             .await
+            .map(Arc::new)
     }
 
     pub async fn get_storage_zone_stats(
@@ -285,15 +287,16 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_video_libraries(&self) -> Result<Vec<VideoLibrary>> {
+    pub async fn list_video_libraries(&self) -> Result<Arc<Vec<VideoLibrary>>> {
         if let Some(cached) = read_list_cache(&self.video_libraries_cache) {
             debug!("Reusing cached video libraries");
             return Ok(cached);
         }
         debug!("Fetching list of video libraries");
-        let libraries = self
-            .get_all_items::<VideoLibrary>(API_BASE_URL, "videolibrary", None)
-            .await?;
+        let libraries = Arc::new(
+            self.get_all_items::<VideoLibrary>(API_BASE_URL, "videolibrary", None)
+                .await?,
+        );
         write_list_cache(&self.video_libraries_cache, &libraries);
         Ok(libraries)
     }
@@ -353,15 +356,16 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_pull_zones(&self) -> Result<Vec<PullZone>> {
+    pub async fn list_pull_zones(&self) -> Result<Arc<Vec<PullZone>>> {
         if let Some(cached) = read_list_cache(&self.pull_zones_cache) {
             debug!("Reusing cached pull zones");
             return Ok(cached);
         }
         debug!("Fetching list of pull zones");
-        let zones = self
-            .get_all_items::<PullZone>(API_BASE_URL, "pullzone", None)
-            .await?;
+        let zones = Arc::new(
+            self.get_all_items::<PullZone>(API_BASE_URL, "pullzone", None)
+                .await?,
+        );
         write_list_cache(&self.pull_zones_cache, &zones);
         Ok(zones)
     }
@@ -439,10 +443,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_applications(&self) -> Result<Vec<Application>> {
+    pub async fn list_applications(&self) -> Result<Arc<Vec<Application>>> {
         debug!("Fetching list of applications");
         self.get_all_cursor_items::<Application>(API_BASE_URL, "mc/apps", None)
             .await
+            .map(Arc::new)
     }
 
     pub async fn get_application_stats(
@@ -464,10 +469,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_edge_scripts(&self) -> Result<Vec<EdgeScript>> {
+    pub async fn list_edge_scripts(&self) -> Result<Arc<Vec<EdgeScript>>> {
         debug!("Fetching list of edge scripts");
         self.get_all_items::<EdgeScript>(API_BASE_URL, "compute/script", None)
             .await
+            .map(Arc::new)
     }
 
     pub async fn get_edge_script_stats(
@@ -488,10 +494,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_shield_zones(&self) -> Result<Vec<ShieldZone>> {
+    pub async fn list_shield_zones(&self) -> Result<Arc<Vec<ShieldZone>>> {
         debug!("Fetching list of shield zones");
         self.get_all_data_items::<ShieldZone>(API_BASE_URL, "shield/shield-zones", None)
             .await
+            .map(Arc::new)
     }
 
     pub async fn get_shield_metrics(
@@ -514,19 +521,15 @@ impl ApiClient {
     }
 }
 
-fn read_list_cache<T: Clone>(cache: &Mutex<Option<Vec<T>>>) -> Option<Vec<T>> {
-    cache
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .as_ref()
-        .cloned()
+fn read_list_cache<T>(cache: &Mutex<Option<Arc<Vec<T>>>>) -> Option<Arc<Vec<T>>> {
+    cache.lock().unwrap_or_else(PoisonError::into_inner).clone()
 }
 
-fn write_list_cache<T: Clone>(cache: &Mutex<Option<Vec<T>>>, value: &[T]) {
-    *cache.lock().unwrap_or_else(PoisonError::into_inner) = Some(value.to_vec());
+fn write_list_cache<T>(cache: &Mutex<Option<Arc<Vec<T>>>>, value: &Arc<Vec<T>>) {
+    *cache.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(value));
 }
 
-fn clear_list_cache<T>(cache: &Mutex<Option<Vec<T>>>) {
+fn clear_list_cache<T>(cache: &Mutex<Option<Arc<Vec<T>>>>) {
     *cache.lock().unwrap_or_else(PoisonError::into_inner) = None;
 }
 

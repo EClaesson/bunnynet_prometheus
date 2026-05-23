@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use chrono::NaiveDate;
@@ -38,7 +39,7 @@ impl EntityType for ApplicationKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<Application>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<Application>>> {
         Box::pin(async move { client.list_applications().await })
     }
 

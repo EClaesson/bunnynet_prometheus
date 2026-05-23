@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use chrono::NaiveDate;
 use metrics::gauge;
@@ -29,7 +31,7 @@ impl EntityType for PullZoneOriginShieldQueueKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<PullZone>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
         Box::pin(async move { client.list_pull_zones().await })
     }
 

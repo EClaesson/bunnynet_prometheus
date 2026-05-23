@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use chrono::NaiveDate;
 use metrics::{counter, gauge};
@@ -30,7 +32,7 @@ impl EntityType for EdgeScriptKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<EdgeScript>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<EdgeScript>>> {
         Box::pin(async move { client.list_edge_scripts().await })
     }
 

@@ -31,7 +31,7 @@ pub trait EntityType: Sized + Send + Sync + 'static {
     fn entity_id(entity: &Self::Entity) -> String;
     fn entity_label(entity: &Self::Entity) -> String;
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<Self::Entity>>;
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<Self::Entity>>>;
     fn fetch_day<'a>(
         client: &'a ApiClient,
         entity: &'a Self::Entity,
@@ -136,24 +136,26 @@ impl<E: EntityType> EntityStatsState<E> {
         self.last_entity_count = Some(count);
 
         let mut live_ids: HashSet<String> = HashSet::with_capacity(entities.len());
-        for entity in &entities {
+        for entity in entities.iter() {
             live_ids.insert(E::entity_id(entity));
         }
 
         let semaphore = Arc::new(Semaphore::new(concurrency.max(1)));
         let mut set: JoinSet<Result<(String, EntityEntry<E>)>> = JoinSet::new();
 
-        for entity in entities {
-            let id = E::entity_id(&entity);
+        for (idx, entity) in entities.iter().enumerate() {
+            let id = E::entity_id(entity);
             let mut entry = self.entities.get(&id).cloned().unwrap_or_default();
-            entry.label = E::entity_label(&entity);
+            entry.label = E::entity_label(entity);
 
+            let entities = Arc::clone(&entities);
             let semaphore = Arc::clone(&semaphore);
             let client = Arc::clone(&client);
 
             set.spawn(async move {
                 let _permit = semaphore.acquire().await?;
-                update_entry::<E>(&client, &entity, &id, &mut entry, today, yesterday).await?;
+                let entity = &entities[idx];
+                update_entry::<E>(&client, entity, &id, &mut entry, today, yesterday).await?;
                 Ok((id, entry))
             });
         }

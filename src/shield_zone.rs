@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use chrono::NaiveDate;
@@ -39,7 +40,7 @@ impl EntityType for ShieldZoneKind {
             .unwrap_or_default()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<ShieldZone>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<ShieldZone>>> {
         Box::pin(async move { client.list_shield_zones().await })
     }
 

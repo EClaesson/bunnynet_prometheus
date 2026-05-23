@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use chrono::NaiveDate;
 use metrics::gauge;
@@ -29,7 +31,7 @@ impl EntityType for StorageZoneKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<StorageZone>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<StorageZone>>> {
         Box::pin(async move { client.list_storage_zones().await })
     }
 

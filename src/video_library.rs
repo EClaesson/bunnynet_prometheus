@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use anyhow::Context;
 use chrono::NaiveDate;
@@ -31,7 +32,7 @@ impl EntityType for VideoLibraryKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Vec<VideoLibrary>> {
+    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<VideoLibrary>>> {
         Box::pin(async move { client.list_video_libraries().await })
     }
 
