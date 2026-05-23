@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -8,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, DnsZone, QueriesByTypeChart};
 use crate::entity_stats::{
-    DayData, EntityStatsState, EntityType, FetchFuture, f64_to_u64, find_chart_value_for_date,
+    DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter, f64_to_u64,
+    find_chart_value_for_date,
 };
 
 pub type DnsZoneStatsState = EntityStatsState<DnsZoneKind>;
@@ -74,32 +74,13 @@ impl EntityType for DnsZoneKind {
         counter!("bunnynet.dns_zone.smart_queries", &labels)
             .absolute(last.smart_queries_served + current.smart_queries_served);
 
-        let unique_types: HashSet<&String> = last
-            .queries_served_per_type
-            .keys()
-            .chain(current.queries_served_per_type.keys())
-            .collect();
-
-        for type_str in unique_types {
-            let total = last
-                .queries_served_per_type
-                .get(type_str)
-                .copied()
-                .unwrap_or(0)
-                + current
-                    .queries_served_per_type
-                    .get(type_str)
-                    .copied()
-                    .unwrap_or(0);
-
-            counter!(
-                "bunnynet.dns_zone.queries_by_type",
-                "zone_id" => id.to_string(),
-                "domain" => domain.to_string(),
-                "type" => type_str.clone(),
-            )
-            .absolute(total);
-        }
+        emit_labeled_counter(
+            "bunnynet.dns_zone.queries_by_type",
+            &last.queries_served_per_type,
+            &current.queries_served_per_type,
+            "type",
+            &labels,
+        );
     }
 }
 

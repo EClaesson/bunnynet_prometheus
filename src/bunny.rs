@@ -14,6 +14,7 @@ const STREAM_API_BASE_URL: &str = "https://video.bunnycdn.com";
 const ACCESS_KEY_HEADER: &str = "AccessKey";
 const MIN_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const MAX_RETRY_INTERVAL: Duration = Duration::from_mins(1);
+const MIN_RETRY_DURATION: Duration = Duration::from_secs(1);
 const MAX_RETRY_DURATION: Duration = Duration::from_mins(5);
 const ITEMS_PER_PAGE: u32 = 500;
 const DATE_FORMAT: &str = "%Y-%m-%d";
@@ -45,7 +46,9 @@ impl ApiClient {
             .timeout(api_request_timeout)
             .build()?;
 
-        let retry_duration_budget = (poll_interval * 4 / 5).min(MAX_RETRY_DURATION);
+        let retry_duration_budget = (poll_interval * 4 / 5)
+            .min(MAX_RETRY_DURATION)
+            .max(MIN_RETRY_DURATION);
         let retry_policy = reqwest_retry::policies::ExponentialBackoff::builder()
             .jitter(reqwest_retry::Jitter::Bounded)
             .retry_bounds(MIN_RETRY_INTERVAL, MAX_RETRY_INTERVAL)
@@ -98,9 +101,7 @@ impl ApiClient {
         loop {
             let mut page = self
                 .build_get(
-                    format!(
-                        "{base_url}/{url_path}?page={page_num}&perPage={ITEMS_PER_PAGE}"
-                    ),
+                    format!("{base_url}/{url_path}?page={page_num}&perPage={ITEMS_PER_PAGE}"),
                     access_key,
                 )?
                 .send()
@@ -172,9 +173,7 @@ impl ApiClient {
         loop {
             let mut page = self
                 .build_get(
-                    format!(
-                        "{base_url}/{url_path}?page={page_num}&perPage={ITEMS_PER_PAGE}"
-                    ),
+                    format!("{base_url}/{url_path}?page={page_num}&perPage={ITEMS_PER_PAGE}"),
                     access_key,
                 )?
                 .send()

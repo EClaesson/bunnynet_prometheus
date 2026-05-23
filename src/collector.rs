@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use clap::ValueEnum;
+use serde::de::DeserializeOwned;
 
 use crate::application::ApplicationStatsState;
 use crate::dns_zone::DnsZoneStatsState;
@@ -58,65 +59,35 @@ impl Collector {
     }
 
     pub fn load_state(self, state_dir: &Path) -> Result<Box<dyn State>> {
+        let file = self.state_file_name();
         match self {
-            Self::Application => Ok(Box::new(read_state_from_file::<ApplicationStatsState>(
-                state_dir,
-                &self.state_file_name(),
-            )?)),
-            Self::DnsZone => Ok(Box::new(read_state_from_file::<DnsZoneStatsState>(
-                state_dir,
-                &self.state_file_name(),
-            )?)),
-            Self::EdgeScript => Ok(Box::new(read_state_from_file::<EdgeScriptStatsState>(
-                state_dir,
-                &self.state_file_name(),
-            )?)),
-            Self::StorageZone => Ok(Box::new(read_state_from_file::<StorageZoneStatsState>(
-                state_dir,
-                &self.state_file_name(),
-            )?)),
-            Self::VideoLibrary => Ok(Box::new(read_state_from_file::<VideoLibraryStatsState>(
-                state_dir,
-                &self.state_file_name(),
-            )?)),
-            Self::VideoLibraryTranscribing => Ok(Box::new(read_state_from_file::<
-                VideoLibraryTranscribingStatsState,
-            >(
-                state_dir, &self.state_file_name()
-            )?)),
-            Self::VideoLibraryDrm => {
-                Ok(Box::new(read_state_from_file::<VideoLibraryDrmStatsState>(
-                    state_dir,
-                    &self.state_file_name(),
-                )?))
+            Self::Application => read::<ApplicationStatsState>(state_dir, &file),
+            Self::DnsZone => read::<DnsZoneStatsState>(state_dir, &file),
+            Self::EdgeScript => read::<EdgeScriptStatsState>(state_dir, &file),
+            Self::StorageZone => read::<StorageZoneStatsState>(state_dir, &file),
+            Self::VideoLibrary => read::<VideoLibraryStatsState>(state_dir, &file),
+            Self::VideoLibraryTranscribing => {
+                read::<VideoLibraryTranscribingStatsState>(state_dir, &file)
             }
-            Self::PullZone => Ok(Box::new(read_state_from_file::<PullZoneStatsState>(
-                state_dir,
-                &self.state_file_name(),
-            )?)),
-            Self::PullZoneOptimizer => Ok(Box::new(read_state_from_file::<
-                PullZoneOptimizerStatsState,
-            >(
-                state_dir, &self.state_file_name()
-            )?)),
-            Self::PullZoneOriginShieldQueue => Ok(Box::new(read_state_from_file::<
-                PullZoneOriginShieldQueueStatsState,
-            >(
-                state_dir, &self.state_file_name()
-            )?)),
-            Self::PullZoneSafehop => Ok(Box::new(read_state_from_file::<
-                PullZoneSafeHopStatsState,
-            >(
-                state_dir, &self.state_file_name()
-            )?)),
-            Self::ShieldZone => Ok(Box::new(read_state_from_file::<ShieldZoneStatsState>(
-                state_dir,
-                &self.state_file_name(),
-            )?)),
+            Self::VideoLibraryDrm => read::<VideoLibraryDrmStatsState>(state_dir, &file),
+            Self::PullZone => read::<PullZoneStatsState>(state_dir, &file),
+            Self::PullZoneOptimizer => read::<PullZoneOptimizerStatsState>(state_dir, &file),
+            Self::PullZoneOriginShieldQueue => {
+                read::<PullZoneOriginShieldQueueStatsState>(state_dir, &file)
+            }
+            Self::PullZoneSafehop => read::<PullZoneSafeHopStatsState>(state_dir, &file),
+            Self::ShieldZone => read::<ShieldZoneStatsState>(state_dir, &file),
         }
     }
 
     pub fn save_state(self, state: &dyn State, state_dir: &Path) -> Result<()> {
         write_state_to_file(state_dir, &self.state_file_name(), &state.serialize()?)
     }
+}
+
+fn read<T>(state_dir: &Path, file: &str) -> Result<Box<dyn State>>
+where
+    T: State + Default + DeserializeOwned + 'static,
+{
+    Ok(Box::new(read_state_from_file::<T>(state_dir, file)?))
 }

@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -8,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, CountryViewCounts, CountryWatchTime, VideoLibrary};
 use crate::entity_stats::{
-    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
+    DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter,
+    find_chart_value_for_date,
 };
 
 pub type VideoLibraryStatsState = EntityStatsState<VideoLibraryKind>;
@@ -78,39 +78,21 @@ impl EntityType for VideoLibraryKind {
         counter!("bunnynet.video_library.watch_time", &labels)
             .absolute(last.watch_time + current.watch_time);
 
-        let view_countries: HashSet<&String> = last
-            .country_views
-            .keys()
-            .chain(current.country_views.keys())
-            .collect();
-        for country in view_countries {
-            let total = last.country_views.get(country).copied().unwrap_or(0)
-                + current.country_views.get(country).copied().unwrap_or(0);
-            counter!(
-                "bunnynet.video_library.country_views",
-                "library_id" => id.to_string(),
-                "name" => name.to_string(),
-                "country" => country.clone(),
-            )
-            .absolute(total);
-        }
+        emit_labeled_counter(
+            "bunnynet.video_library.country_views",
+            &last.country_views,
+            &current.country_views,
+            "country",
+            &labels,
+        );
 
-        let watch_countries: HashSet<&String> = last
-            .country_watch_time
-            .keys()
-            .chain(current.country_watch_time.keys())
-            .collect();
-        for country in watch_countries {
-            let total = last.country_watch_time.get(country).copied().unwrap_or(0)
-                + current.country_watch_time.get(country).copied().unwrap_or(0);
-            counter!(
-                "bunnynet.video_library.country_watch_time",
-                "library_id" => id.to_string(),
-                "name" => name.to_string(),
-                "country" => country.clone(),
-            )
-            .absolute(total);
-        }
+        emit_labeled_counter(
+            "bunnynet.video_library.country_watch_time",
+            &last.country_watch_time,
+            &current.country_watch_time,
+            "country",
+            &labels,
+        );
     }
 }
 

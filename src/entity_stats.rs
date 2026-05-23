@@ -270,7 +270,7 @@ pub fn find_chart_value_for_date<V: Copy>(
     }
 }
 
-pub fn find_chart_value_for_date_multi<V: Copy>(
+pub fn find_chart_value_for_date_lenient<V: Copy>(
     chart: &HashMap<String, V>,
     date: NaiveDate,
 ) -> Result<V> {
@@ -285,4 +285,23 @@ pub fn find_chart_value_for_date_multi<V: Copy>(
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub const fn f64_to_u64(v: f64) -> u64 {
     if v < 0.0 { 0 } else { v as u64 }
+}
+
+pub fn emit_labeled_counter(
+    metric: &'static str,
+    last: &HashMap<String, u64>,
+    current: &HashMap<String, u64>,
+    label_key: &'static str,
+    fixed_labels: &[(&'static str, String)],
+) {
+    let keys: HashSet<&String> = last.keys().chain(current.keys()).collect();
+    for key in keys {
+        let total =
+            last.get(key).copied().unwrap_or(0) + current.get(key).copied().unwrap_or(0);
+        let mut labels: Vec<(&'static str, String)> =
+            Vec::with_capacity(fixed_labels.len() + 1);
+        labels.extend_from_slice(fixed_labels);
+        labels.push((label_key, key.clone()));
+        metrics::counter!(metric, &labels).absolute(total);
+    }
 }

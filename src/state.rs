@@ -46,6 +46,8 @@ pub fn write_state_to_file(state_dir: &Path, file_name: &str, json: &str) -> Res
     file.sync_all()?;
     drop(file);
     std::fs::rename(&tmp_path, path)?;
+
+    #[cfg(unix)]
     std::fs::File::open(state_dir)?.sync_all()?;
 
     Ok(())

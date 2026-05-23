@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -8,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, GeoTrafficDistribution, PullZone};
 use crate::entity_stats::{
-    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
+    DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter,
+    find_chart_value_for_date,
 };
 
 pub type PullZoneStatsState = EntityStatsState<PullZoneKind>;
@@ -138,32 +138,13 @@ impl EntityType for PullZoneKind {
             .set(current.origin_response_time);
         gauge!("bunnynet.pull_zone.cache_hit_rate", &labels).set(current.cache_hit_rate);
 
-        let unique_regions: HashSet<&String> = last
-            .geo_traffic_distribution
-            .keys()
-            .chain(current.geo_traffic_distribution.keys())
-            .collect();
-
-        for region in unique_regions {
-            let total = last
-                .geo_traffic_distribution
-                .get(region)
-                .copied()
-                .unwrap_or(0)
-                + current
-                    .geo_traffic_distribution
-                    .get(region)
-                    .copied()
-                    .unwrap_or(0);
-
-            counter!(
-                "bunnynet.pull_zone.geo_traffic",
-                "zone_id" => id.to_string(),
-                "name" => name.to_string(),
-                "region" => region.clone(),
-            )
-            .absolute(total);
-        }
+        emit_labeled_counter(
+            "bunnynet.pull_zone.geo_traffic",
+            &last.geo_traffic_distribution,
+            &current.geo_traffic_distribution,
+            "region",
+            &labels,
+        );
     }
 }
 

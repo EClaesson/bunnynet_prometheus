@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use chrono::NaiveDate;
-use metrics::{counter, gauge};
+use metrics::gauge;
 use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, ShieldCategoryMetrics, ShieldZone};
 use crate::entity_stats::{
-    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date_multi,
+    DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter,
+    find_chart_value_for_date_lenient,
 };
 
 pub type ShieldZoneStatsState = EntityStatsState<ShieldZoneKind>;
@@ -111,23 +112,18 @@ impl EntityType for ShieldZoneKind {
             let empty = HashMap::new();
             let last_actions = last.categories.get(category).unwrap_or(&empty);
             let current_actions = current.categories.get(category).unwrap_or(&empty);
-            let action_keys: HashSet<&String> = last_actions
-                .keys()
-                .chain(current_actions.keys())
-                .collect();
-
-            for action in action_keys {
-                let total = last_actions.get(action).copied().unwrap_or(0)
-                    + current_actions.get(action).copied().unwrap_or(0);
-                counter!(
-                    "bunnynet.shield_zone.requests",
-                    "shield_zone_id" => id.to_string(),
-                    "pull_zone_id" => pull_zone_id.to_string(),
-                    "category" => category.clone(),
-                    "action" => action.clone(),
-                )
-                .absolute(total);
-            }
+            let labels = [
+                ("shield_zone_id", id.to_string()),
+                ("pull_zone_id", pull_zone_id.to_string()),
+                ("category", category.clone()),
+            ];
+            emit_labeled_counter(
+                "bunnynet.shield_zone.requests",
+                last_actions,
+                current_actions,
+                "action",
+                &labels,
+            );
         }
 
         let gauge_labels = [
@@ -152,7 +148,7 @@ fn extract_category_for_date(
 ) -> Result<HashMap<String, u64>> {
     let mut actions = HashMap::with_capacity(cat.metrics.len());
     for (action, chart) in &cat.metrics {
-        let value = find_chart_value_for_date_multi(chart, date)
+        let value = find_chart_value_for_date_lenient(chart, date)
             .with_context(|| format!("action {action}"))?;
         actions.insert(action.clone(), value);
     }

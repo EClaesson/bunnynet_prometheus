@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -71,7 +72,7 @@ pub struct CliArgs {
         default_value = "0.0.0.0",
         help = "HTTP server bind address"
     )]
-    pub bind_addr: String,
+    pub bind_addr: IpAddr,
 
     #[arg(
         short = 'p',
