@@ -113,7 +113,7 @@ impl EntityType for VideoLibraryKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct VideoLibraryDayData {
     pub views: u64,
     pub watch_time: u64,

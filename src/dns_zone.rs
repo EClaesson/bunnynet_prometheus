@@ -102,7 +102,7 @@ impl EntityType for DnsZoneKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct DnsDayData {
     pub normal_queries_served: u64,
     pub smart_queries_served: u64,

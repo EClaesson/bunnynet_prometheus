@@ -66,7 +66,7 @@ impl EntityType for VideoLibraryTranscribingKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct VideoLibraryTranscribingDayData {
     pub transcription_seconds: u64,
 }

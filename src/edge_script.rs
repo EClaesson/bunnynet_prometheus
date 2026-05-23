@@ -78,7 +78,7 @@ impl EntityType for EdgeScriptKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct EdgeScriptDayData {
     pub requests_served: u64,
     pub total_cpu_time: u64,

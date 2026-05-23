@@ -95,7 +95,7 @@ fn chart_value_or_default<V: Copy + Default>(
     chart.map_or_else(|| Ok(V::default()), |c| find_chart_value_for_date(c, date))
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct PullZoneOptimizerDayData {
     pub requests_optimized: u64,
     pub traffic_saved: u64,

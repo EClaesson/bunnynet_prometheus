@@ -14,7 +14,7 @@ const DATE_FORMAT: &str = "%Y-%m-%d";
 
 pub type FetchFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
 
-pub trait DayData: Default + Serialize + DeserializeOwned + Send {
+pub trait DayData: Default + Clone + Serialize + DeserializeOwned + Send {
     fn accumulate(&mut self, day: Self);
     fn merge_latest(&mut self, snap: Self);
 }
@@ -82,97 +82,116 @@ impl<E: EntityType> Default for EntityEntry<E> {
     }
 }
 
+impl<E: EntityType> Clone for EntityEntry<E> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label.clone(),
+            last_complete_day: self.last_complete_day,
+            last_complete_day_state: self.last_complete_day_state.clone(),
+            current_day_state: self.current_day_state.clone(),
+        }
+    }
+}
+
 impl<E: EntityType> State for EntityStatsState<E> {
     fn poll<'a>(&'a mut self, client: &'a ApiClient) -> PollFuture<'a> {
         Box::pin(async move {
-            debug!(collector = E::LOG_LABEL, "Polling stats");
-            let today = chrono::Utc::now().date_naive();
-            let yesterday = today - chrono::Days::new(1);
-
-            let entities = E::list(client).await?;
-            let count = entities.len();
-
-            match self.last_entity_count {
-                None => info!(
-                    collector = E::LOG_LABEL,
-                    count,
-                    "Monitoring entities",
-                ),
-                Some(prev) if prev != count => info!(
-                    collector = E::LOG_LABEL,
-                    previous = prev,
-                    current = count,
-                    "Entity count changed",
-                ),
-                _ => {}
-            }
-            self.last_entity_count = Some(count);
-
-            for entity in &entities {
-                let id = E::entity_id(entity);
-                let label = E::entity_label(entity);
-                let entry = self.entities.entry(id.clone()).or_default();
-                entry.label.clone_from(&label);
-
-                if let Some(last) = entry.last_complete_day
-                    && last < yesterday
-                {
-                    let first = last + chrono::TimeDelta::days(1);
-                    let days = (yesterday - last).num_days();
-                    info!(
-                        collector = E::LOG_LABEL,
-                        entity_id = %id,
-                        entity_label = %label,
-                        from = %first,
-                        to = %yesterday,
-                        days,
-                        "Backfilling missed days",
-                    );
-                    let mut cursor = first;
-                    while cursor <= yesterday {
-                        debug!(
-                            collector = E::LOG_LABEL,
-                            entity_id = %id,
-                            entity_label = %label,
-                            date = %cursor,
-                            "Fetching day (backfill)",
-                        );
-                        let day = E::fetch_day(client, entity, cursor).await?;
-                        entry.last_complete_day_state.accumulate(day);
-                        entry.last_complete_day = Some(cursor);
-                        cursor += chrono::TimeDelta::days(1);
-                    }
-                    entry.current_day_state = E::DayData::default();
-                } else {
-                    entry.last_complete_day = Some(yesterday);
-                }
-
-                debug!(
-                    collector = E::LOG_LABEL,
-                    entity_id = %id,
-                    entity_label = %label,
-                    date = %today,
-                    "Fetching day (current)",
-                );
-                let snap = E::fetch_day(client, entity, today).await?;
-                entry.current_day_state.merge_latest(snap);
-            }
-
-            for (id, entry) in &self.entities {
-                E::emit_metrics(
-                    id,
-                    &entry.label,
-                    &entry.last_complete_day_state,
-                    &entry.current_day_state,
-                );
-            }
-
+            let mut new_state = Self {
+                entities: self.entities.clone(),
+                last_entity_count: self.last_entity_count,
+            };
+            new_state.try_poll(client).await?;
+            *self = new_state;
             Ok(())
         })
     }
 
     fn serialize(&self) -> Result<String> {
         Ok(serde_json::to_string(self)?)
+    }
+}
+
+impl<E: EntityType> EntityStatsState<E> {
+    async fn try_poll(&mut self, client: &ApiClient) -> Result<()> {
+        debug!(collector = E::LOG_LABEL, "Polling stats");
+        let today = chrono::Utc::now().date_naive();
+        let yesterday = today - chrono::Days::new(1);
+
+        let entities = E::list(client).await?;
+        let count = entities.len();
+
+        match self.last_entity_count {
+            None => info!(collector = E::LOG_LABEL, count, "Monitoring entities",),
+            Some(prev) if prev != count => info!(
+                collector = E::LOG_LABEL,
+                previous = prev,
+                current = count,
+                "Entity count changed",
+            ),
+            _ => {}
+        }
+        self.last_entity_count = Some(count);
+
+        for entity in &entities {
+            let id = E::entity_id(entity);
+            let label = E::entity_label(entity);
+            let entry = self.entities.entry(id.clone()).or_default();
+            entry.label.clone_from(&label);
+
+            if let Some(last) = entry.last_complete_day
+                && last < yesterday
+            {
+                let first = last + chrono::TimeDelta::days(1);
+                let days = (yesterday - last).num_days();
+                info!(
+                    collector = E::LOG_LABEL,
+                    entity_id = %id,
+                    entity_label = %label,
+                    from = %first,
+                    to = %yesterday,
+                    days,
+                    "Backfilling missed days",
+                );
+                let mut cursor = first;
+                while cursor <= yesterday {
+                    debug!(
+                        collector = E::LOG_LABEL,
+                        entity_id = %id,
+                        entity_label = %label,
+                        date = %cursor,
+                        "Fetching day (backfill)",
+                    );
+                    let day = E::fetch_day(client, entity, cursor).await?;
+                    entry.last_complete_day_state.accumulate(day);
+                    entry.last_complete_day = Some(cursor);
+                    cursor += chrono::TimeDelta::days(1);
+                }
+                entry.current_day_state = E::DayData::default();
+            } else {
+                entry.last_complete_day = Some(yesterday);
+            }
+
+            debug!(
+                collector = E::LOG_LABEL,
+                entity_id = %id,
+                entity_label = %label,
+                date = %today,
+                "Fetching day (current)",
+            );
+            let snap = E::fetch_day(client, entity, today).await?;
+            entry.current_day_state.merge_latest(snap);
+        }
+
+        for (id, entry) in &self.entities {
+            E::emit_metrics(
+                id,
+                &entry.label,
+                &entry.last_complete_day_state,
+                &entry.current_day_state,
+            );
+        }
+
+        Ok(())
     }
 }
 

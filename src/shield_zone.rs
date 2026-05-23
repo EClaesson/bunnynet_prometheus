@@ -158,7 +158,7 @@ fn extract_category_for_date(
     Ok(actions)
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct ShieldZoneDayData {
     pub categories: HashMap<String, HashMap<String, u64>>,
     pub total_clean_requests_limit: u64,

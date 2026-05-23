@@ -64,7 +64,7 @@ impl EntityType for VideoLibraryDrmKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct VideoLibraryDrmDayData {
     pub licenses_issued: u64,
 }

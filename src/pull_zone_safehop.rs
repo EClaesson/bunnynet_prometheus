@@ -70,7 +70,7 @@ impl EntityType for PullZoneSafeHopKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct PullZoneSafeHopDayData {
     pub requests_retried: u64,
     pub requests_saved: u64,

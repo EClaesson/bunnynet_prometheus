@@ -62,7 +62,7 @@ impl EntityType for StorageZoneKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct StorageDayData {
     pub storage_used: u64,
     pub file_count: u64,

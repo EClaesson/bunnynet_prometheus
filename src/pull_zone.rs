@@ -166,7 +166,7 @@ impl EntityType for PullZoneKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct PullZoneDayData {
     pub origin_response_time: f64,
     pub cache_hit_rate: f64,

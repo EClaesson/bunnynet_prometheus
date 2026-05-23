@@ -78,7 +78,7 @@ impl EntityType for PullZoneOriginShieldQueueKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct PullZoneOriginShieldQueueDayData {
     pub concurrent_requests: u64,
     pub queued_requests: u64,

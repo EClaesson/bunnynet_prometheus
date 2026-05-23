@@ -140,7 +140,7 @@ fn extract_volume_chart_for_date(
     Ok(result)
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct ApplicationDayData {
     pub target_latency: f64,
     pub active_regions: f64,
