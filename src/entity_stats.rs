@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -132,9 +132,11 @@ impl<E: EntityType> EntityStatsState<E> {
         }
         self.last_entity_count = Some(count);
 
+        let mut live_ids: HashSet<String> = HashSet::with_capacity(entities.len());
         for entity in &entities {
             let id = E::entity_id(entity);
             let label = E::entity_label(entity);
+            live_ids.insert(id.clone());
             let entry = self.entities.entry(id.clone()).or_default();
             entry.label.clone_from(&label);
 
@@ -181,6 +183,8 @@ impl<E: EntityType> EntityStatsState<E> {
             let snap = E::fetch_day(client, entity, today).await?;
             entry.current_day_state.merge_latest(snap);
         }
+
+        self.entities.retain(|id, _| live_ids.contains(id));
 
         for (id, entry) in &self.entities {
             E::emit_metrics(
