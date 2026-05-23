@@ -63,20 +63,14 @@ impl EntityType for EdgeScriptKind {
         })
     }
 
-    fn emit_metrics(
-        id: &str,
-        name: &str,
-        last: &EdgeScriptDayData,
-        current: &EdgeScriptDayData,
-    ) {
+    fn emit_metrics(id: &str, name: &str, last: &EdgeScriptDayData, current: &EdgeScriptDayData) {
         let labels = [("script_id", id.to_string()), ("name", name.to_string())];
 
         counter!("bunnynet.edge_script.requests_served", &labels)
             .absolute(last.requests_served + current.requests_served);
         counter!("bunnynet.edge_script.cpu_time", &labels)
             .absolute(last.total_cpu_time + current.total_cpu_time);
-        gauge!("bunnynet.edge_script.average_cpu_time", &labels)
-            .set(current.average_cpu_time);
+        gauge!("bunnynet.edge_script.average_cpu_time", &labels).set(current.average_cpu_time);
     }
 }
 

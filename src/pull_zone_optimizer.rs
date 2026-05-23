@@ -51,9 +51,8 @@ impl EntityType for PullZoneOptimizerKind {
             let requests_optimized =
                 chart_value_or_default(stats.requests_optimized_chart.as_ref(), date)
                     .context(REQUESTS_OPTIMIZED)?;
-            let traffic_saved =
-                chart_value_or_default(stats.traffic_saved_chart.as_ref(), date)
-                    .context(TRAFFIC_SAVED)?;
+            let traffic_saved = chart_value_or_default(stats.traffic_saved_chart.as_ref(), date)
+                .context(TRAFFIC_SAVED)?;
             let average_compression =
                 chart_value_or_default(stats.average_compression_chart.as_ref(), date)
                     .context(AVERAGE_COMPRESSION)?;
@@ -84,8 +83,11 @@ impl EntityType for PullZoneOptimizerKind {
             .absolute(last.traffic_saved + current.traffic_saved);
         gauge!("bunnynet.pull_zone_optimizer.average_compression", &labels)
             .set(current.average_compression);
-        gauge!("bunnynet.pull_zone_optimizer.average_processing_time", &labels)
-            .set(current.average_processing_time);
+        gauge!(
+            "bunnynet.pull_zone_optimizer.average_processing_time",
+            &labels
+        )
+        .set(current.average_processing_time);
     }
 }
 

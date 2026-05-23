@@ -296,10 +296,8 @@ pub fn emit_labeled_counter(
 ) {
     let keys: HashSet<&String> = last.keys().chain(current.keys()).collect();
     for key in keys {
-        let total =
-            last.get(key).copied().unwrap_or(0) + current.get(key).copied().unwrap_or(0);
-        let mut labels: Vec<(&'static str, String)> =
-            Vec::with_capacity(fixed_labels.len() + 1);
+        let total = last.get(key).copied().unwrap_or(0) + current.get(key).copied().unwrap_or(0);
+        let mut labels: Vec<(&'static str, String)> = Vec::with_capacity(fixed_labels.len() + 1);
         labels.extend_from_slice(fixed_labels);
         labels.push((label_key, key.clone()));
         metrics::counter!(metric, &labels).absolute(total);

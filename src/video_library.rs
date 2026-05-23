@@ -43,18 +43,12 @@ impl EntityType for VideoLibraryKind {
     ) -> FetchFuture<'a, VideoLibraryDayData> {
         Box::pin(async move {
             let stats = client
-                .get_video_library_stats(
-                    library.id,
-                    Some(&library.read_only_api_key),
-                    date,
-                    date,
-                )
+                .get_video_library_stats(library.id, Some(&library.read_only_api_key), date, date)
                 .await?;
 
-            let views =
-                find_chart_value_for_date(&stats.views_chart, date).context(VIEWS)?;
-            let watch_time = find_chart_value_for_date(&stats.watch_time_chart, date)
-                .context(WATCH_TIME)?;
+            let views = find_chart_value_for_date(&stats.views_chart, date).context(VIEWS)?;
+            let watch_time =
+                find_chart_value_for_date(&stats.watch_time_chart, date).context(WATCH_TIME)?;
 
             Ok(VideoLibraryDayData {
                 views,
@@ -73,8 +67,7 @@ impl EntityType for VideoLibraryKind {
     ) {
         let labels = [("library_id", id.to_string()), ("name", name.to_string())];
 
-        counter!("bunnynet.video_library.views", &labels)
-            .absolute(last.views + current.views);
+        counter!("bunnynet.video_library.views", &labels).absolute(last.views + current.views);
         counter!("bunnynet.video_library.watch_time", &labels)
             .absolute(last.watch_time + current.watch_time);
 

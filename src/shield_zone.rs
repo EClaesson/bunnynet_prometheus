@@ -64,18 +64,15 @@ impl EntityType for ShieldZoneKind {
             );
             categories.insert(
                 RATE_LIMIT.to_string(),
-                extract_category_for_date(&metrics.rate_limit, date)
-                    .context(RATE_LIMIT)?,
+                extract_category_for_date(&metrics.rate_limit, date).context(RATE_LIMIT)?,
             );
             categories.insert(
                 ACCESS_LISTS.to_string(),
-                extract_category_for_date(&metrics.access_lists, date)
-                    .context(ACCESS_LISTS)?,
+                extract_category_for_date(&metrics.access_lists, date).context(ACCESS_LISTS)?,
             );
             categories.insert(
                 BOT_DETECTION.to_string(),
-                extract_category_for_date(&metrics.bot_detection, date)
-                    .context(BOT_DETECTION)?,
+                extract_category_for_date(&metrics.bot_detection, date).context(BOT_DETECTION)?,
             );
             categories.insert(
                 UPLOAD_SCANNING.to_string(),
@@ -84,8 +81,7 @@ impl EntityType for ShieldZoneKind {
             );
             categories.insert(
                 API_GUARDIAN.to_string(),
-                extract_category_for_date(&metrics.api_guardian, date)
-                    .context(API_GUARDIAN)?,
+                extract_category_for_date(&metrics.api_guardian, date).context(API_GUARDIAN)?,
             );
 
             Ok(ShieldZoneDayData {

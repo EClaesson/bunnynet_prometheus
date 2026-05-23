@@ -56,8 +56,7 @@ impl EntityType for ApplicationKind {
             let active_regions = find_chart_value_for_date(&stats.active_regions_chart, date)
                 .context(ACTIVE_REGIONS)?
                 .unwrap_or(0.0);
-            let latency =
-                find_chart_value_for_date(&stats.latency_chart, date).context(LATENCY)?;
+            let latency = find_chart_value_for_date(&stats.latency_chart, date).context(LATENCY)?;
             let instances = find_chart_value_for_date(&stats.instances_chart, date)
                 .context(INSTANCES)?
                 .unwrap_or(0.0);
@@ -65,9 +64,8 @@ impl EntityType for ApplicationKind {
                 find_chart_value_for_date(&stats.cpu_usage_chart, date).context(CPU_USAGE)?;
             let ram_usage =
                 find_chart_value_for_date(&stats.ram_usage_chart, date).context(RAM_USAGE)?;
-            let traffic = f64_to_u64(
-                find_chart_value_for_date(&stats.traffic_chart, date).context(TRAFFIC)?,
-            );
+            let traffic =
+                f64_to_u64(find_chart_value_for_date(&stats.traffic_chart, date).context(TRAFFIC)?);
             let volume_usage =
                 extract_volume_chart_for_date(&stats.volumes_split_usage_chart, date)
                     .context(VOLUME_USAGE)?;
@@ -89,12 +87,7 @@ impl EntityType for ApplicationKind {
         })
     }
 
-    fn emit_metrics(
-        id: &str,
-        name: &str,
-        last: &ApplicationDayData,
-        current: &ApplicationDayData,
-    ) {
+    fn emit_metrics(id: &str, name: &str, last: &ApplicationDayData, current: &ApplicationDayData) {
         let labels = [("app_id", id.to_string()), ("name", name.to_string())];
 
         gauge!("bunnynet.application.target_latency", &labels).set(current.target_latency);
@@ -103,8 +96,7 @@ impl EntityType for ApplicationKind {
         gauge!("bunnynet.application.instances", &labels).set(current.instances);
         gauge!("bunnynet.application.cpu_usage", &labels).set(current.cpu_usage);
         gauge!("bunnynet.application.ram_usage", &labels).set(current.ram_usage);
-        counter!("bunnynet.application.traffic", &labels)
-            .absolute(last.traffic + current.traffic);
+        counter!("bunnynet.application.traffic", &labels).absolute(last.traffic + current.traffic);
 
         for (volume, value) in &current.volume_usage {
             gauge!(

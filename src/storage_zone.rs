@@ -43,8 +43,8 @@ impl EntityType for StorageZoneKind {
         Box::pin(async move {
             let stats = client.get_storage_zone_stats(zone.id, date, date).await?;
 
-            let storage_used = find_chart_value_for_date(&stats.storage_used_chart, date)
-                .context(STORAGE_USED)?;
+            let storage_used =
+                find_chart_value_for_date(&stats.storage_used_chart, date).context(STORAGE_USED)?;
             let file_count =
                 find_chart_value_for_date(&stats.file_count_chart, date).context(FILE_COUNT)?;
 

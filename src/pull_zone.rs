@@ -71,19 +71,17 @@ impl EntityType for PullZoneKind {
             let origin_shield_bandwidth_used =
                 find_chart_value_for_date(&stats.origin_shield_bandwidth_used_chart, date)
                     .context(ORIGIN_SHIELD_BANDWIDTH_USED)?;
-            let origin_shield_internal_bandwidth_used = find_chart_value_for_date(
-                &stats.origin_shield_internal_bandwidth_used_chart,
-                date,
-            )
-            .context(ORIGIN_SHIELD_INTERNAL_BANDWIDTH_USED)?;
+            let origin_shield_internal_bandwidth_used =
+                find_chart_value_for_date(&stats.origin_shield_internal_bandwidth_used_chart, date)
+                    .context(ORIGIN_SHIELD_INTERNAL_BANDWIDTH_USED)?;
             let origin_traffic = find_chart_value_for_date(&stats.origin_traffic_chart, date)
                 .context(ORIGIN_TRAFFIC)?;
-            let errors_3xx = find_chart_value_for_date(&stats.errors_3xx_chart, date)
-                .context(ERRORS_3XX)?;
-            let errors_4xx = find_chart_value_for_date(&stats.errors_4xx_chart, date)
-                .context(ERRORS_4XX)?;
-            let errors_5xx = find_chart_value_for_date(&stats.errors_5xx_chart, date)
-                .context(ERRORS_5XX)?;
+            let errors_3xx =
+                find_chart_value_for_date(&stats.errors_3xx_chart, date).context(ERRORS_3XX)?;
+            let errors_4xx =
+                find_chart_value_for_date(&stats.errors_4xx_chart, date).context(ERRORS_4XX)?;
+            let errors_5xx =
+                find_chart_value_for_date(&stats.errors_5xx_chart, date).context(ERRORS_5XX)?;
 
             Ok(PullZoneDayData {
                 origin_response_time,
@@ -114,9 +112,8 @@ impl EntityType for PullZoneKind {
             .absolute(last.requests_served + current.requests_served);
         counter!("bunnynet.pull_zone.pull_requests_pulled", &labels)
             .absolute(last.pull_requests_pulled + current.pull_requests_pulled);
-        counter!("bunnynet.pull_zone.origin_shield_bandwidth_used", &labels).absolute(
-            last.origin_shield_bandwidth_used + current.origin_shield_bandwidth_used,
-        );
+        counter!("bunnynet.pull_zone.origin_shield_bandwidth_used", &labels)
+            .absolute(last.origin_shield_bandwidth_used + current.origin_shield_bandwidth_used);
         counter!(
             "bunnynet.pull_zone.origin_shield_internal_bandwidth_used",
             &labels
