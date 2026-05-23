@@ -41,6 +41,14 @@ pub struct CliArgs {
     pub api_request_timeout: u64,
 
     #[arg(
+        short = 'n',
+        long,
+        default_value = "5",
+        help = "Maximum number of concurrent Bunny.net API requests"
+    )]
+    pub api_concurrency: usize,
+
+    #[arg(
         short = 'i',
         long,
         default_value = "300",

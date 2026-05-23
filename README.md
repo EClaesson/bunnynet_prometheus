@@ -35,6 +35,8 @@ Options:
           Path to a file containing a Bunny.net API access key
   -r, --api-request-timeout <API_REQUEST_TIMEOUT>
           Timeout in seconds for Bunny.net API requests [default: 10]
+  -n, --api-concurrency <API_CONCURRENCY>
+          Maximum number of concurrent Bunny.net API requests [default: 5]
   -i, --poll-interval <POLL_INTERVAL>
           Update interval in seconds [default: 300]
   -s, --state-dir <STATE_DIR>

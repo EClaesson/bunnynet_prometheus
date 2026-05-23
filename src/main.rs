@@ -17,6 +17,7 @@ mod video_library_drm;
 mod video_library_transcribing;
 
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -65,11 +66,22 @@ async fn run_server(args: &CliArgs) -> Result<()> {
     let poll_interval = Duration::from_secs(args.poll_interval);
     let access_key = resolve_access_key(args)?;
     let api_request_timeout = Duration::from_secs(args.api_request_timeout);
-    let client = create_api_client(&access_key, api_request_timeout, poll_interval)?;
+    let client = Arc::new(create_api_client(
+        &access_key,
+        api_request_timeout,
+        poll_interval,
+    )?);
     std::fs::create_dir_all(&args.state_dir)
         .with_context(|| format!("Failed to create state dir: {}", args.state_dir.display()))?;
     start_prometheus_listener(&args.bind_addr, args.bind_port)?;
-    start_poller_loop(&client, &args.collectors, &args.state_dir, poll_interval).await?;
+    start_poller_loop(
+        client,
+        &args.collectors,
+        &args.state_dir,
+        poll_interval,
+        args.api_concurrency,
+    )
+    .await?;
 
     Ok(())
 }
@@ -97,10 +109,11 @@ fn start_prometheus_listener(bind_addr: &str, bind_port: u16) -> Result<()> {
 }
 
 async fn start_poller_loop(
-    client: &ApiClient,
+    client: Arc<ApiClient>,
     collectors: &[Collector],
     state_dir: &Path,
     poll_interval: Duration,
+    api_concurrency: usize,
 ) -> Result<()> {
     let mut states: Vec<(Collector, Box<dyn State>)> = collectors
         .iter()
@@ -110,6 +123,7 @@ async fn start_poller_loop(
     let enabled: Vec<&str> = collectors.iter().map(|c| c.name()).collect();
     info!(
         poll_interval_seconds = poll_interval.as_secs(),
+        api_concurrency,
         state_dir = %state_dir.display(),
         collectors = enabled.join(","),
         "Starting bunny.net poller"
@@ -129,7 +143,7 @@ async fn start_poller_loop(
                 let mut succeeded: usize = 0;
 
                 for (collector, state) in &mut states {
-                    if let Err(e) = state.poll(client).await {
+                    if let Err(e) = state.poll(Arc::clone(&client), api_concurrency).await {
                         error!(collector = collector.name(), "Poll failed: {e:#}");
                         continue;
                     }

@@ -1,10 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use anyhow::{Result, bail};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 use tracing::{debug, info};
 
 use crate::bunny::ApiClient;
@@ -14,13 +17,13 @@ const DATE_FORMAT: &str = "%Y-%m-%d";
 
 pub type FetchFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
 
-pub trait DayData: Default + Clone + Serialize + DeserializeOwned + Send {
+pub trait DayData: Default + Clone + Serialize + DeserializeOwned + Send + 'static {
     fn accumulate(&mut self, day: Self);
     fn merge_latest(&mut self, snap: Self);
 }
 
 pub trait EntityType: Sized + Send + Sync + 'static {
-    type Entity: Send + Sync;
+    type Entity: Send + Sync + 'static;
     type DayData: DayData;
 
     const LOG_LABEL: &'static str;
@@ -94,13 +97,13 @@ impl<E: EntityType> Clone for EntityEntry<E> {
 }
 
 impl<E: EntityType> State for EntityStatsState<E> {
-    fn poll<'a>(&'a mut self, client: &'a ApiClient) -> PollFuture<'a> {
+    fn poll(&mut self, client: Arc<ApiClient>, concurrency: usize) -> PollFuture<'_> {
         Box::pin(async move {
             let mut new_state = Self {
                 entities: self.entities.clone(),
                 last_entity_count: self.last_entity_count,
             };
-            new_state.try_poll(client).await?;
+            new_state.try_poll(client, concurrency).await?;
             *self = new_state;
             Ok(())
         })
@@ -112,12 +115,12 @@ impl<E: EntityType> State for EntityStatsState<E> {
 }
 
 impl<E: EntityType> EntityStatsState<E> {
-    async fn try_poll(&mut self, client: &ApiClient) -> Result<()> {
+    async fn try_poll(&mut self, client: Arc<ApiClient>, concurrency: usize) -> Result<()> {
         debug!(collector = E::LOG_LABEL, "Polling stats");
         let today = chrono::Utc::now().date_naive();
         let yesterday = today - chrono::Days::new(1);
 
-        let entities = E::list(client).await?;
+        let entities = E::list(&client).await?;
         let count = entities.len();
 
         match self.last_entity_count {
@@ -134,54 +137,51 @@ impl<E: EntityType> EntityStatsState<E> {
 
         let mut live_ids: HashSet<String> = HashSet::with_capacity(entities.len());
         for entity in &entities {
-            let id = E::entity_id(entity);
-            let label = E::entity_label(entity);
-            live_ids.insert(id.clone());
-            let entry = self.entities.entry(id.clone()).or_default();
-            entry.label.clone_from(&label);
+            live_ids.insert(E::entity_id(entity));
+        }
 
-            if let Some(last) = entry.last_complete_day
-                && last < yesterday
-            {
-                let first = last + chrono::TimeDelta::days(1);
-                let days = (yesterday - last).num_days();
-                info!(
-                    collector = E::LOG_LABEL,
-                    entity_id = %id,
-                    entity_label = %label,
-                    from = %first,
-                    to = %yesterday,
-                    days,
-                    "Backfilling missed days",
-                );
-                let mut cursor = first;
-                while cursor <= yesterday {
-                    debug!(
-                        collector = E::LOG_LABEL,
-                        entity_id = %id,
-                        entity_label = %label,
-                        date = %cursor,
-                        "Fetching day (backfill)",
-                    );
-                    let day = E::fetch_day(client, entity, cursor).await?;
-                    entry.last_complete_day_state.accumulate(day);
-                    entry.last_complete_day = Some(cursor);
-                    cursor += chrono::TimeDelta::days(1);
+        let semaphore = Arc::new(Semaphore::new(concurrency.max(1)));
+        let mut set: JoinSet<Result<(String, EntityEntry<E>)>> = JoinSet::new();
+
+        for entity in entities {
+            let id = E::entity_id(&entity);
+            let mut entry = self.entities.get(&id).cloned().unwrap_or_default();
+            entry.label = E::entity_label(&entity);
+
+            let semaphore = Arc::clone(&semaphore);
+            let client = Arc::clone(&client);
+
+            set.spawn(async move {
+                let _permit = semaphore.acquire().await?;
+                update_entry::<E>(&client, &entity, &id, &mut entry, today, yesterday).await?;
+                Ok((id, entry))
+            });
+        }
+
+        let mut first_err: Option<anyhow::Error> = None;
+        while let Some(joined) = set.join_next().await {
+            match joined {
+                Ok(Ok((id, entry))) if first_err.is_none() => {
+                    self.entities.insert(id, entry);
                 }
-                entry.current_day_state = E::DayData::default();
-            } else {
-                entry.last_complete_day = Some(yesterday);
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    if first_err.is_none() {
+                        first_err = Some(e);
+                        set.abort_all();
+                    }
+                }
+                Err(e) => {
+                    if first_err.is_none() {
+                        first_err = Some(e.into());
+                        set.abort_all();
+                    }
+                }
             }
+        }
 
-            debug!(
-                collector = E::LOG_LABEL,
-                entity_id = %id,
-                entity_label = %label,
-                date = %today,
-                "Fetching day (current)",
-            );
-            let snap = E::fetch_day(client, entity, today).await?;
-            entry.current_day_state.merge_latest(snap);
+        if let Some(e) = first_err {
+            return Err(e);
         }
 
         self.entities.retain(|id, _| live_ids.contains(id));
@@ -197,6 +197,60 @@ impl<E: EntityType> EntityStatsState<E> {
 
         Ok(())
     }
+}
+
+async fn update_entry<E: EntityType>(
+    client: &ApiClient,
+    entity: &E::Entity,
+    id: &str,
+    entry: &mut EntityEntry<E>,
+    today: NaiveDate,
+    yesterday: NaiveDate,
+) -> Result<()> {
+    if let Some(last) = entry.last_complete_day
+        && last < yesterday
+    {
+        let first = last + chrono::TimeDelta::days(1);
+        let days = (yesterday - last).num_days();
+        info!(
+            collector = E::LOG_LABEL,
+            entity_id = %id,
+            entity_label = %entry.label,
+            from = %first,
+            to = %yesterday,
+            days,
+            "Backfilling missed days",
+        );
+        let mut cursor = first;
+        while cursor <= yesterday {
+            debug!(
+                collector = E::LOG_LABEL,
+                entity_id = %id,
+                entity_label = %entry.label,
+                date = %cursor,
+                "Fetching day (backfill)",
+            );
+            let day = E::fetch_day(client, entity, cursor).await?;
+            entry.last_complete_day_state.accumulate(day);
+            entry.last_complete_day = Some(cursor);
+            cursor += chrono::TimeDelta::days(1);
+        }
+        entry.current_day_state = E::DayData::default();
+    } else {
+        entry.last_complete_day = Some(yesterday);
+    }
+
+    debug!(
+        collector = E::LOG_LABEL,
+        entity_id = %id,
+        entity_label = %entry.label,
+        date = %today,
+        "Fetching day (current)",
+    );
+    let snap = E::fetch_day(client, entity, today).await?;
+    entry.current_day_state.merge_latest(snap);
+
+    Ok(())
 }
 
 pub fn find_chart_value_for_date<V: Copy>(

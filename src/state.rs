@@ -2,6 +2,7 @@ use std::future::Future;
 use std::io::{self, Write};
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use anyhow::Result;
 use serde::de::DeserializeOwned;
@@ -12,7 +13,7 @@ use crate::bunny::ApiClient;
 pub type PollFuture<'a> = Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 
 pub trait State: Send {
-    fn poll<'a>(&'a mut self, client: &'a ApiClient) -> PollFuture<'a>;
+    fn poll(&mut self, client: Arc<ApiClient>, concurrency: usize) -> PollFuture<'_>;
     fn serialize(&self) -> Result<String>;
 }
 
