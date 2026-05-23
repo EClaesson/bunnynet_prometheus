@@ -23,7 +23,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use metrics::gauge;
-use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_exporter_prometheus::{ExporterFuture, PrometheusBuilder};
 use tracing::{debug, error, info, warn};
 
 use crate::bunny::ApiClient;
@@ -73,13 +73,14 @@ async fn run_server(args: &CliArgs) -> Result<()> {
     )?);
     std::fs::create_dir_all(&args.state_dir)
         .with_context(|| format!("Failed to create state dir: {}", args.state_dir.display()))?;
-    start_prometheus_listener(args.bind_addr, args.bind_port)?;
+    let exporter = build_prometheus_exporter(args.bind_addr, args.bind_port)?;
     start_poller_loop(
         client,
         &args.collectors,
         &args.state_dir,
         poll_interval,
         args.api_concurrency,
+        exporter,
     )
     .await?;
 
@@ -95,17 +96,21 @@ fn create_api_client(
         .context("Failed to create Bunny.net API client")
 }
 
-fn start_prometheus_listener(bind_addr: std::net::IpAddr, bind_port: u16) -> Result<()> {
+fn build_prometheus_exporter(
+    bind_addr: std::net::IpAddr,
+    bind_port: u16,
+) -> Result<ExporterFuture> {
     info!(
         %bind_addr,
         bind_port, "Starting Prometheus HTTP endpoint listener"
     );
-    PrometheusBuilder::new()
+    let (recorder, exporter) = PrometheusBuilder::new()
         .with_http_listener(std::net::SocketAddr::new(bind_addr, bind_port))
         .with_recommended_naming(true)
-        .install()?;
+        .build()?;
+    metrics::set_global_recorder(recorder)?;
 
-    Ok(())
+    Ok(exporter)
 }
 
 async fn start_poller_loop(
@@ -114,6 +119,7 @@ async fn start_poller_loop(
     state_dir: &Path,
     poll_interval: Duration,
     api_concurrency: usize,
+    mut exporter: ExporterFuture,
 ) -> Result<()> {
     let mut states: Vec<(Collector, Box<dyn State>)> = collectors
         .iter()
@@ -174,6 +180,13 @@ async fn start_poller_loop(
             }
             () = &mut shutdown => {
                 info!("Shutdown signal received, exiting");
+                break;
+            }
+             exporter = exporter.as_mut() => {
+                match exporter {
+                    Ok(()) => info!("HTTP listener exited"),
+                    Err(e) => error!("HTTP listener failed: {e:?}"),
+                }
                 break;
             }
         }
