@@ -7,7 +7,7 @@ _bunnynet_prometheus_ is a daemon that periodically polls the [Bunny.net API](ht
 All available statistics endpoints in the Bunny.net API are covered: Magic Containers, DNS zones, Edge scripts, Storage zones, Video libraries, Video transcribing, Video DRM, Pull zones, Pull zone optimizers, Pull zone origin shield queues, Pull zone SafeHops and Shield zones.
 Each category of statistics is implemented as a separate collector that can be individually enabled. Details about available collectors and the metrics they emit can be found under [Collectors](#collectors).
 
-Counter values are persisted to disk between poll cycles, so restarts don't reset totals and day rollovers are correctly handled. If the daemon has been stopped for an extended period, missed days will be backfilled.
+Counter values are persisted to disk between poll cycles, so restarts don't reset totals and day rollovers are correctly handled. If the daemon has been stopped for an extended period, missed days will be backfilled. The day rollover follows Bunny.net (UTC). Each collector keeps a state file in the state directory (default `~/.local/share/bunnynet_prometheus/state`) which maintains a running tally of totals.
 
 ## Installation
 
