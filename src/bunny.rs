@@ -504,14 +504,16 @@ impl ApiClient {
         &self,
         shield_zone_id: u64,
         from_date: NaiveDate,
+        to_date: NaiveDate,
     ) -> Result<ShieldMetrics> {
         let from_date = from_date.format(DATE_FORMAT).to_string();
+        let to_date = to_date.format(DATE_FORMAT).to_string();
 
         let wrapper = self
             .get_single::<DataEnvelope<ShieldMetrics>>(
                 API_BASE_URL,
                 &format!(
-                    "shield/metrics/overview/{shield_zone_id}/detailed?startdate={from_date}Z&resolution=4"
+                    "shield/metrics/overview/{shield_zone_id}/detailed?startdate={from_date}&enddate={to_date}&resolution=4"
                 ),
                 None,
             )

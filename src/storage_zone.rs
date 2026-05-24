@@ -55,6 +55,15 @@ impl EntityType for StorageZoneKind {
         })
     }
 
+    fn fetch_range<'a>(
+        _client: &'a ApiClient,
+        _zone: &'a StorageZone,
+        _from: NaiveDate,
+        _to: NaiveDate,
+    ) -> FetchFuture<'a, StorageDayData> {
+        Box::pin(async move { Ok(StorageDayData::default()) })
+    }
+
     #[allow(clippy::cast_precision_loss)]
     fn emit_metrics(id: &str, name: &str, _last: &StorageDayData, current: &StorageDayData) {
         let labels = [("zone_id", id.to_string()), ("name", name.to_string())];

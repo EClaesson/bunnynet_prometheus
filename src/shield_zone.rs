@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, ShieldCategoryMetrics, ShieldZone};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter,
-    find_chart_value_for_date_lenient,
+    find_chart_value_for_date_lenient, sum_chart_values_in_range,
 };
 
 pub type ShieldZoneStatsState = EntityStatsState<ShieldZoneKind>;
@@ -51,7 +51,9 @@ impl EntityType for ShieldZoneKind {
         date: NaiveDate,
     ) -> FetchFuture<'a, ShieldZoneDayData> {
         Box::pin(async move {
-            let metrics = client.get_shield_metrics(zone.shield_zone_id, date).await?;
+            let metrics = client
+                .get_shield_metrics(zone.shield_zone_id, date, date)
+                .await?;
 
             let mut categories = HashMap::new();
             categories.insert(
@@ -88,6 +90,52 @@ impl EntityType for ShieldZoneKind {
                 categories,
                 total_clean_requests_limit: metrics.total_clean_requests_limit,
                 total_billable_requests_this_month: metrics.total_billable_requests_this_month,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        zone: &'a ShieldZone,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, ShieldZoneDayData> {
+        Box::pin(async move {
+            let metrics = client
+                .get_shield_metrics(zone.shield_zone_id, from, to)
+                .await?;
+
+            let mut categories = HashMap::new();
+            categories.insert(WAF.to_string(), sum_category_in_range(&metrics.waf, from, to));
+            categories.insert(
+                DDOS.to_string(),
+                sum_category_in_range(&metrics.ddos, from, to),
+            );
+            categories.insert(
+                RATE_LIMIT.to_string(),
+                sum_category_in_range(&metrics.rate_limit, from, to),
+            );
+            categories.insert(
+                ACCESS_LISTS.to_string(),
+                sum_category_in_range(&metrics.access_lists, from, to),
+            );
+            categories.insert(
+                BOT_DETECTION.to_string(),
+                sum_category_in_range(&metrics.bot_detection, from, to),
+            );
+            categories.insert(
+                UPLOAD_SCANNING.to_string(),
+                sum_category_in_range(&metrics.upload_scanning, from, to),
+            );
+            categories.insert(
+                API_GUARDIAN.to_string(),
+                sum_category_in_range(&metrics.api_guardian, from, to),
+            );
+
+            Ok(ShieldZoneDayData {
+                categories,
+                total_clean_requests_limit: 0,
+                total_billable_requests_this_month: 0,
             })
         })
     }
@@ -149,6 +197,18 @@ fn extract_category_for_date(
         actions.insert(action.clone(), value);
     }
     Ok(actions)
+}
+
+fn sum_category_in_range(
+    cat: &ShieldCategoryMetrics,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> HashMap<String, u64> {
+    let mut actions = HashMap::with_capacity(cat.metrics.len());
+    for (action, chart) in &cat.metrics {
+        actions.insert(action.clone(), sum_chart_values_in_range(chart, from, to));
+    }
+    actions
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]

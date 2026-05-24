@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, DnsZone, QueriesByTypeChart};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter, f64_to_u64,
-    find_chart_value_for_date,
+    find_chart_value_for_date, sum_chart_f64_as_u64,
 };
 
 pub type DnsZoneStatsState = EntityStatsState<DnsZoneKind>;
@@ -52,6 +52,31 @@ impl EntityType for DnsZoneKind {
                 find_chart_value_for_date(&stats.smart_queries_served_chart, date)
                     .context(SMART_QUERIES_SERVED)?,
             );
+
+            let mut queries_served_per_type = QueriesByTypeChart::new();
+            for (type_num, value) in &stats.queries_by_type_chart {
+                queries_served_per_type.insert(dns_type_name(type_num).to_string(), *value);
+            }
+
+            Ok(DnsDayData {
+                normal_queries_served,
+                smart_queries_served,
+                queries_served_per_type,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        zone: &'a DnsZone,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, DnsDayData> {
+        Box::pin(async move {
+            let stats = client.get_dns_zone_stats(zone.id, from, to).await?;
+
+            let normal_queries_served = sum_chart_f64_as_u64(&stats.normal_queries_served_chart);
+            let smart_queries_served = sum_chart_f64_as_u64(&stats.smart_queries_served_chart);
 
             let mut queries_served_per_type = QueriesByTypeChart::new();
             for (type_num, value) in &stats.queries_by_type_chart {

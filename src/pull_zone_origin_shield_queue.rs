@@ -58,6 +58,15 @@ impl EntityType for PullZoneOriginShieldQueueKind {
         })
     }
 
+    fn fetch_range<'a>(
+        _client: &'a ApiClient,
+        _zone: &'a PullZone,
+        _from: NaiveDate,
+        _to: NaiveDate,
+    ) -> FetchFuture<'a, PullZoneOriginShieldQueueDayData> {
+        Box::pin(async move { Ok(PullZoneOriginShieldQueueDayData::default()) })
+    }
+
     #[allow(clippy::cast_precision_loss)]
     fn emit_metrics(
         id: &str,

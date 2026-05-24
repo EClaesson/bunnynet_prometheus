@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, VideoLibrary};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, f64_to_u64, find_chart_value_for_date,
+    sum_chart_f64_as_u64,
 };
 
 pub type VideoLibraryDrmStatsState = EntityStatsState<VideoLibraryDrmKind>;
@@ -48,6 +49,23 @@ impl EntityType for VideoLibraryDrmKind {
                 find_chart_value_for_date(&stats.licenses_issued_chart, date)
                     .context(LICENSES_ISSUED)?,
             );
+
+            Ok(VideoLibraryDrmDayData { licenses_issued })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        library: &'a VideoLibrary,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, VideoLibraryDrmDayData> {
+        Box::pin(async move {
+            let stats = client
+                .get_video_library_drm_stats(library.id, from, to)
+                .await?;
+
+            let licenses_issued = sum_chart_f64_as_u64(&stats.licenses_issued_chart);
 
             Ok(VideoLibraryDrmDayData { licenses_issued })
         })

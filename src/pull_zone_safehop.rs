@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, PullZone};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
+    sum_chart_values,
 };
 
 pub type PullZoneSafeHopStatsState = EntityStatsState<PullZoneSafeHopKind>;
@@ -53,6 +54,24 @@ impl EntityType for PullZoneSafeHopKind {
             Ok(PullZoneSafeHopDayData {
                 requests_retried,
                 requests_saved,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        zone: &'a PullZone,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, PullZoneSafeHopDayData> {
+        Box::pin(async move {
+            let stats = client
+                .get_pull_zone_safehop_stats(zone.id, from, to)
+                .await?;
+
+            Ok(PullZoneSafeHopDayData {
+                requests_retried: sum_chart_values(&stats.requests_retried_chart),
+                requests_saved: sum_chart_values(&stats.requests_saved_chart),
             })
         })
     }

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, GeoTrafficDistribution, PullZone};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter,
-    find_chart_value_for_date,
+    find_chart_value_for_date, sum_chart_values,
 };
 
 pub type PullZoneStatsState = EntityStatsState<PullZoneKind>;
@@ -96,6 +96,37 @@ impl EntityType for PullZoneKind {
                 errors_3xx,
                 errors_4xx,
                 errors_5xx,
+                geo_traffic_distribution: stats.geo_traffic_distribution,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        zone: &'a PullZone,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, PullZoneDayData> {
+        Box::pin(async move {
+            let stats = client.get_pull_zone_stats(zone.id, from, to).await?;
+
+            Ok(PullZoneDayData {
+                origin_response_time: 0.0,
+                cache_hit_rate: 0.0,
+                bandwidth_used: sum_chart_values(&stats.bandwidth_used_chart),
+                bandwidth_cached: sum_chart_values(&stats.bandwidth_cached_chart),
+                requests_served: sum_chart_values(&stats.requests_served_chart),
+                pull_requests_pulled: sum_chart_values(&stats.pull_requests_pulled_chart),
+                origin_shield_bandwidth_used: sum_chart_values(
+                    &stats.origin_shield_bandwidth_used_chart,
+                ),
+                origin_shield_internal_bandwidth_used: sum_chart_values(
+                    &stats.origin_shield_internal_bandwidth_used_chart,
+                ),
+                origin_traffic: sum_chart_values(&stats.origin_traffic_chart),
+                errors_3xx: sum_chart_values(&stats.errors_3xx_chart),
+                errors_4xx: sum_chart_values(&stats.errors_4xx_chart),
+                errors_5xx: sum_chart_values(&stats.errors_5xx_chart),
                 geo_traffic_distribution: stats.geo_traffic_distribution,
             })
         })

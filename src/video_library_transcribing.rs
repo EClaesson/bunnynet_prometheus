@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, VideoLibrary};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, f64_to_u64, find_chart_value_for_date,
+    sum_chart_f64_as_u64,
 };
 
 pub type VideoLibraryTranscribingStatsState = EntityStatsState<VideoLibraryTranscribingKind>;
@@ -48,6 +49,25 @@ impl EntityType for VideoLibraryTranscribingKind {
                 find_chart_value_for_date(&stats.transcription_seconds_chart, date)
                     .context(TRANSCRIPTION_SECONDS)?,
             );
+
+            Ok(VideoLibraryTranscribingDayData {
+                transcription_seconds,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        library: &'a VideoLibrary,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, VideoLibraryTranscribingDayData> {
+        Box::pin(async move {
+            let stats = client
+                .get_video_library_transcribing_stats(library.id, from, to)
+                .await?;
+
+            let transcription_seconds = sum_chart_f64_as_u64(&stats.transcription_seconds_chart);
 
             Ok(VideoLibraryTranscribingDayData {
                 transcription_seconds,

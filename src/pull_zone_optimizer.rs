@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, PullZone};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
+    sum_chart_values,
 };
 
 pub type PullZoneOptimizerStatsState = EntityStatsState<PullZoneOptimizerKind>;
@@ -65,6 +66,37 @@ impl EntityType for PullZoneOptimizerKind {
                 traffic_saved,
                 average_compression,
                 average_processing_time,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        zone: &'a PullZone,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, PullZoneOptimizerDayData> {
+        Box::pin(async move {
+            let stats = client
+                .get_pull_zone_optimizer_stats(zone.id, from, to)
+                .await?;
+
+            let requests_optimized = stats
+                .requests_optimized_chart
+                .as_ref()
+                .map(sum_chart_values)
+                .unwrap_or_default();
+            let traffic_saved = stats
+                .traffic_saved_chart
+                .as_ref()
+                .map(sum_chart_values)
+                .unwrap_or_default();
+
+            Ok(PullZoneOptimizerDayData {
+                requests_optimized,
+                traffic_saved,
+                average_compression: 0.0,
+                average_processing_time: 0.0,
             })
         })
     }

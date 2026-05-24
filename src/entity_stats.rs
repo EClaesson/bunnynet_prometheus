@@ -38,6 +38,24 @@ pub trait EntityType: Sized + Send + Sync + 'static {
         date: NaiveDate,
     ) -> FetchFuture<'a, Self::DayData>;
 
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        entity: &'a Self::Entity,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, Self::DayData> {
+        Box::pin(async move {
+            let mut acc = Self::DayData::default();
+            let mut cursor = from;
+            while cursor <= to {
+                let day = Self::fetch_day(client, entity, cursor).await?;
+                acc.accumulate(day);
+                cursor += chrono::TimeDelta::days(1);
+            }
+            Ok(acc)
+        })
+    }
+
     fn emit_metrics(id: &str, label: &str, last: &Self::DayData, current: &Self::DayData);
 }
 
@@ -223,20 +241,9 @@ async fn update_entry<E: EntityType>(
             days,
             "Backfilling missed days",
         );
-        let mut cursor = first;
-        while cursor <= yesterday {
-            debug!(
-                collector = E::LOG_LABEL,
-                entity_id = %id,
-                entity_label = %entry.label,
-                date = %cursor,
-                "Fetching day (backfill)",
-            );
-            let day = E::fetch_day(client, entity, cursor).await?;
-            entry.last_complete_day_state.accumulate(day);
-            entry.last_complete_day = Some(cursor);
-            cursor += chrono::TimeDelta::days(1);
-        }
+        let backfill = E::fetch_range(client, entity, first, yesterday).await?;
+        entry.last_complete_day_state.accumulate(backfill);
+        entry.last_complete_day = Some(yesterday);
         entry.current_day_state = E::DayData::default();
     } else {
         entry.last_complete_day = Some(yesterday);
@@ -268,6 +275,36 @@ pub fn find_chart_value_for_date<V: Copy>(
             chart.len()
         ),
     }
+}
+
+pub fn sum_chart_values<V>(chart: &HashMap<String, V>) -> V
+where
+    V: Copy + std::iter::Sum<V>,
+{
+    chart.values().copied().sum()
+}
+
+pub fn sum_chart_f64_as_u64(chart: &HashMap<String, f64>) -> u64 {
+    chart.values().copied().map(f64_to_u64).sum()
+}
+
+pub fn sum_chart_values_in_range<V>(
+    chart: &HashMap<String, V>,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> V
+where
+    V: Copy + std::iter::Sum<V>,
+{
+    let from_key = from.format(DATE_FORMAT).to_string();
+    let to_key = to.format(DATE_FORMAT).to_string();
+    chart
+        .iter()
+        .filter_map(|(key, value)| {
+            let prefix = key.get(..from_key.len())?;
+            (prefix >= from_key.as_str() && prefix <= to_key.as_str()).then_some(*value)
+        })
+        .sum()
 }
 
 pub fn find_chart_value_for_date_lenient<V: Copy>(

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, CountryViewCounts, CountryWatchTime, VideoLibrary};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter,
-    find_chart_value_for_date,
+    find_chart_value_for_date, sum_chart_values,
 };
 
 pub type VideoLibraryStatsState = EntityStatsState<VideoLibraryKind>;
@@ -53,6 +53,26 @@ impl EntityType for VideoLibraryKind {
             Ok(VideoLibraryDayData {
                 views,
                 watch_time,
+                country_views: stats.country_view_counts,
+                country_watch_time: stats.country_watch_time,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        library: &'a VideoLibrary,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, VideoLibraryDayData> {
+        Box::pin(async move {
+            let stats = client
+                .get_video_library_stats(library.id, Some(&library.read_only_api_key), from, to)
+                .await?;
+
+            Ok(VideoLibraryDayData {
+                views: sum_chart_values(&stats.views_chart),
+                watch_time: sum_chart_values(&stats.watch_time_chart),
                 country_views: stats.country_view_counts,
                 country_watch_time: stats.country_watch_time,
             })

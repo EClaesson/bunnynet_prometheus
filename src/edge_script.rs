@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, EdgeScript};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, f64_to_u64, find_chart_value_for_date,
+    sum_chart_f64_as_u64,
 };
 
 pub type EdgeScriptStatsState = EntityStatsState<EdgeScriptKind>;
@@ -59,6 +60,26 @@ impl EntityType for EdgeScriptKind {
                 requests_served,
                 total_cpu_time,
                 average_cpu_time,
+            })
+        })
+    }
+
+    fn fetch_range<'a>(
+        client: &'a ApiClient,
+        script: &'a EdgeScript,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, EdgeScriptDayData> {
+        Box::pin(async move {
+            let stats = client.get_edge_script_stats(script.id, from, to).await?;
+
+            let requests_served = sum_chart_f64_as_u64(&stats.requests_served_chart);
+            let total_cpu_time = sum_chart_f64_as_u64(&stats.total_cpu_time_chart);
+
+            Ok(EdgeScriptDayData {
+                requests_served,
+                total_cpu_time,
+                average_cpu_time: 0.0,
             })
         })
     }
