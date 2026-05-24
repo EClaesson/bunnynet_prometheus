@@ -7,14 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, PullZone};
 use crate::entity_stats::{
-    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
-    sum_chart_values,
+    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date, sum_chart_values,
 };
 
 pub type PullZoneSafeHopStatsState = EntityStatsState<PullZoneSafeHopKind>;
-
-const REQUESTS_RETRIED: &str = "requests_retried";
-const REQUESTS_SAVED: &str = "requests_saved";
 
 pub struct PullZoneSafeHopKind;
 
@@ -32,24 +28,25 @@ impl EntityType for PullZoneSafeHopKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
-        Box::pin(async move { client.list_pull_zones().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
+        Box::pin(async move { api_client.list_pull_zones().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a PullZone,
         date: NaiveDate,
     ) -> FetchFuture<'a, PullZoneSafeHopDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_pull_zone_safehop_stats(zone.id, date, date)
                 .await?;
 
-            let requests_retried = find_chart_value_for_date(&stats.requests_retried_chart, date)
-                .context(REQUESTS_RETRIED)?;
-            let requests_saved = find_chart_value_for_date(&stats.requests_saved_chart, date)
-                .context(REQUESTS_SAVED)?;
+            let requests_retried =
+                find_chart_value_for_date(&statistics.requests_retried_chart, date)
+                    .context("requests_retried")?;
+            let requests_saved = find_chart_value_for_date(&statistics.requests_saved_chart, date)
+                .context("requests_saved")?;
 
             Ok(PullZoneSafeHopDayData {
                 requests_retried,
@@ -59,19 +56,19 @@ impl EntityType for PullZoneSafeHopKind {
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a PullZone,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, PullZoneSafeHopDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_pull_zone_safehop_stats(zone.id, from, to)
                 .await?;
 
             Ok(PullZoneSafeHopDayData {
-                requests_retried: sum_chart_values(&stats.requests_retried_chart),
-                requests_saved: sum_chart_values(&stats.requests_saved_chart),
+                requests_retried: sum_chart_values(&statistics.requests_retried_chart),
+                requests_saved: sum_chart_values(&statistics.requests_saved_chart),
             })
         })
     }
@@ -103,8 +100,8 @@ impl DayData for PullZoneSafeHopDayData {
         self.requests_saved += day.requests_saved;
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.requests_retried = self.requests_retried.max(snap.requests_retried);
-        self.requests_saved = self.requests_saved.max(snap.requests_saved);
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.requests_retried = self.requests_retried.max(snapshot.requests_retried);
+        self.requests_saved = self.requests_saved.max(snapshot.requests_saved);
     }
 }

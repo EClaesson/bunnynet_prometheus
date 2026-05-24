@@ -12,9 +12,6 @@ use crate::entity_stats::{
 
 pub type PullZoneOriginShieldQueueStatsState = EntityStatsState<PullZoneOriginShieldQueueKind>;
 
-const CONCURRENT_REQUESTS: &str = "concurrent_requests";
-const QUEUED_REQUESTS: &str = "queued_requests";
-
 pub struct PullZoneOriginShieldQueueKind;
 
 impl EntityType for PullZoneOriginShieldQueueKind {
@@ -31,8 +28,8 @@ impl EntityType for PullZoneOriginShieldQueueKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
-        Box::pin(async move { client.list_pull_zones().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
+        Box::pin(async move { api_client.list_pull_zones().await })
     }
 
     fn fetch_day<'a>(
@@ -41,15 +38,16 @@ impl EntityType for PullZoneOriginShieldQueueKind {
         date: NaiveDate,
     ) -> FetchFuture<'a, PullZoneOriginShieldQueueDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = client
                 .get_pull_zone_origin_shield_queue_stats(zone.id, date, date)
                 .await?;
 
             let concurrent_requests =
-                find_chart_value_for_date(&stats.concurrent_requests_chart, date)
-                    .context(CONCURRENT_REQUESTS)?;
-            let queued_requests = find_chart_value_for_date(&stats.queued_requests_chart, date)
-                .context(QUEUED_REQUESTS)?;
+                find_chart_value_for_date(&statistics.concurrent_requests_chart, date)
+                    .context("concurrent_requests")?;
+            let queued_requests =
+                find_chart_value_for_date(&statistics.queued_requests_chart, date)
+                    .context("queued_requests")?;
 
             Ok(PullZoneOriginShieldQueueDayData {
                 concurrent_requests,
@@ -59,7 +57,7 @@ impl EntityType for PullZoneOriginShieldQueueKind {
     }
 
     fn fetch_range<'a>(
-        _client: &'a ApiClient,
+        _api_client: &'a ApiClient,
         _zone: &'a PullZone,
         _from: NaiveDate,
         _to: NaiveDate,
@@ -98,8 +96,8 @@ pub struct PullZoneOriginShieldQueueDayData {
 impl DayData for PullZoneOriginShieldQueueDayData {
     fn accumulate(&mut self, _day: Self) {}
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.concurrent_requests = snap.concurrent_requests;
-        self.queued_requests = snap.queued_requests;
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.concurrent_requests = snapshot.concurrent_requests;
+        self.queued_requests = snapshot.queued_requests;
     }
 }

@@ -6,7 +6,7 @@ use chrono::NaiveDate;
 use metrics::gauge;
 use serde::{Deserialize, Serialize};
 
-use crate::bunny::{ApiClient, ShieldCategoryMetrics, ShieldZone};
+use crate::bunny::{ApiClient, ShieldCategoryMetrics, ShieldMetrics, ShieldZone};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, emit_labeled_counter,
     find_chart_value_for_date_lenient, sum_chart_values_in_range,
@@ -41,50 +41,27 @@ impl EntityType for ShieldZoneKind {
             .unwrap_or_default()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<ShieldZone>>> {
-        Box::pin(async move { client.list_shield_zones().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<ShieldZone>>> {
+        Box::pin(async move { api_client.list_shield_zones().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a ShieldZone,
         date: NaiveDate,
     ) -> FetchFuture<'a, ShieldZoneDayData> {
         Box::pin(async move {
-            let metrics = client
+            let metrics = api_client
                 .get_shield_metrics(zone.shield_zone_id, date, date)
                 .await?;
 
-            let mut categories = HashMap::new();
-            categories.insert(
-                WAF.to_string(),
-                extract_category_for_date(&metrics.waf, date).context(WAF)?,
-            );
-            categories.insert(
-                DDOS.to_string(),
-                extract_category_for_date(&metrics.ddos, date).context(DDOS)?,
-            );
-            categories.insert(
-                RATE_LIMIT.to_string(),
-                extract_category_for_date(&metrics.rate_limit, date).context(RATE_LIMIT)?,
-            );
-            categories.insert(
-                ACCESS_LISTS.to_string(),
-                extract_category_for_date(&metrics.access_lists, date).context(ACCESS_LISTS)?,
-            );
-            categories.insert(
-                BOT_DETECTION.to_string(),
-                extract_category_for_date(&metrics.bot_detection, date).context(BOT_DETECTION)?,
-            );
-            categories.insert(
-                UPLOAD_SCANNING.to_string(),
-                extract_category_for_date(&metrics.upload_scanning, date)
-                    .context(UPLOAD_SCANNING)?,
-            );
-            categories.insert(
-                API_GUARDIAN.to_string(),
-                extract_category_for_date(&metrics.api_guardian, date).context(API_GUARDIAN)?,
-            );
+            let categories = category_refs(&metrics)
+                .into_iter()
+                .map(|(name, category)| {
+                    let actions = extract_category_for_date(category, date).context(name)?;
+                    Ok::<_, anyhow::Error>((name.to_string(), actions))
+                })
+                .collect::<Result<_>>()?;
 
             Ok(ShieldZoneDayData {
                 categories,
@@ -95,42 +72,20 @@ impl EntityType for ShieldZoneKind {
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a ShieldZone,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, ShieldZoneDayData> {
         Box::pin(async move {
-            let metrics = client
+            let metrics = api_client
                 .get_shield_metrics(zone.shield_zone_id, from, to)
                 .await?;
 
-            let mut categories = HashMap::new();
-            categories.insert(WAF.to_string(), sum_category_in_range(&metrics.waf, from, to));
-            categories.insert(
-                DDOS.to_string(),
-                sum_category_in_range(&metrics.ddos, from, to),
-            );
-            categories.insert(
-                RATE_LIMIT.to_string(),
-                sum_category_in_range(&metrics.rate_limit, from, to),
-            );
-            categories.insert(
-                ACCESS_LISTS.to_string(),
-                sum_category_in_range(&metrics.access_lists, from, to),
-            );
-            categories.insert(
-                BOT_DETECTION.to_string(),
-                sum_category_in_range(&metrics.bot_detection, from, to),
-            );
-            categories.insert(
-                UPLOAD_SCANNING.to_string(),
-                sum_category_in_range(&metrics.upload_scanning, from, to),
-            );
-            categories.insert(
-                API_GUARDIAN.to_string(),
-                sum_category_in_range(&metrics.api_guardian, from, to),
-            );
+            let categories = category_refs(&metrics)
+                .into_iter()
+                .map(|(name, cat)| (name.to_string(), sum_category_in_range(cat, from, to)))
+                .collect();
 
             Ok(ShieldZoneDayData {
                 categories,
@@ -152,8 +107,8 @@ impl EntityType for ShieldZoneKind {
             .chain(current.categories.keys())
             .collect();
 
+        let empty = HashMap::new();
         for category in category_keys {
-            let empty = HashMap::new();
             let last_actions = last.categories.get(category).unwrap_or(&empty);
             let current_actions = current.categories.get(category).unwrap_or(&empty);
             let labels = [
@@ -184,6 +139,18 @@ impl EntityType for ShieldZoneKind {
         )
         .set(current.total_billable_requests_this_month as f64);
     }
+}
+
+const fn category_refs(metrics: &ShieldMetrics) -> [(&'static str, &ShieldCategoryMetrics); 7] {
+    [
+        (WAF, &metrics.waf),
+        (DDOS, &metrics.ddos),
+        (RATE_LIMIT, &metrics.rate_limit),
+        (ACCESS_LISTS, &metrics.access_lists),
+        (BOT_DETECTION, &metrics.bot_detection),
+        (UPLOAD_SCANNING, &metrics.upload_scanning),
+        (API_GUARDIAN, &metrics.api_guardian),
+    ]
 }
 
 fn extract_category_for_date(
@@ -228,15 +195,15 @@ impl DayData for ShieldZoneDayData {
         }
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        for (category, actions) in snap.categories {
+    fn merge_latest(&mut self, snapshot: Self) {
+        for (category, actions) in snapshot.categories {
             let entry = self.categories.entry(category).or_default();
             for (action, value) in actions {
                 let action_entry = entry.entry(action).or_default();
                 *action_entry = (*action_entry).max(value);
             }
         }
-        self.total_clean_requests_limit = snap.total_clean_requests_limit;
-        self.total_billable_requests_this_month = snap.total_billable_requests_this_month;
+        self.total_clean_requests_limit = snapshot.total_clean_requests_limit;
+        self.total_billable_requests_this_month = snapshot.total_billable_requests_this_month;
     }
 }

@@ -12,9 +12,6 @@ use crate::entity_stats::{
 
 pub type StorageZoneStatsState = EntityStatsState<StorageZoneKind>;
 
-const STORAGE_USED: &str = "storage_used";
-const FILE_COUNT: &str = "file_count";
-
 pub struct StorageZoneKind;
 
 impl EntityType for StorageZoneKind {
@@ -31,22 +28,24 @@ impl EntityType for StorageZoneKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<StorageZone>>> {
-        Box::pin(async move { client.list_storage_zones().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<StorageZone>>> {
+        Box::pin(async move { api_client.list_storage_zones().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a StorageZone,
         date: NaiveDate,
     ) -> FetchFuture<'a, StorageDayData> {
         Box::pin(async move {
-            let stats = client.get_storage_zone_stats(zone.id, date, date).await?;
+            let statistics = api_client
+                .get_storage_zone_stats(zone.id, date, date)
+                .await?;
 
-            let storage_used =
-                find_chart_value_for_date(&stats.storage_used_chart, date).context(STORAGE_USED)?;
-            let file_count =
-                find_chart_value_for_date(&stats.file_count_chart, date).context(FILE_COUNT)?;
+            let storage_used = find_chart_value_for_date(&statistics.storage_used_chart, date)
+                .context("storage_used")?;
+            let file_count = find_chart_value_for_date(&statistics.file_count_chart, date)
+                .context("file_count")?;
 
             Ok(StorageDayData {
                 storage_used,
@@ -56,7 +55,7 @@ impl EntityType for StorageZoneKind {
     }
 
     fn fetch_range<'a>(
-        _client: &'a ApiClient,
+        _api_client: &'a ApiClient,
         _zone: &'a StorageZone,
         _from: NaiveDate,
         _to: NaiveDate,
@@ -82,8 +81,8 @@ pub struct StorageDayData {
 impl DayData for StorageDayData {
     fn accumulate(&mut self, _day: Self) {}
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.storage_used = snap.storage_used;
-        self.file_count = snap.file_count;
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.storage_used = snapshot.storage_used;
+        self.file_count = snapshot.file_count;
     }
 }

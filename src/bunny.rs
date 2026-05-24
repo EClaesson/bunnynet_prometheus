@@ -21,8 +21,31 @@ const DATE_FORMAT: &str = "%Y-%m-%d";
 
 pub struct ApiClient {
     client: reqwest_middleware::ClientWithMiddleware,
-    pull_zones_cache: Mutex<Option<Arc<Vec<PullZone>>>>,
-    video_libraries_cache: Mutex<Option<Arc<Vec<VideoLibrary>>>>,
+    pull_zones_cache: ListCache<PullZone>,
+    video_libraries_cache: ListCache<VideoLibrary>,
+}
+
+struct ListCache<T>(Mutex<Option<Arc<Vec<T>>>>);
+
+impl<T> ListCache<T> {
+    const fn new() -> Self {
+        Self(Mutex::new(None))
+    }
+
+    fn read(&self) -> Option<Arc<Vec<T>>> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    fn store(&self, value: &Arc<Vec<T>>) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(value));
+    }
+
+    fn clear(&self) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    }
 }
 
 impl ApiClient {
@@ -62,14 +85,14 @@ impl ApiClient {
 
         Ok(Self {
             client,
-            pull_zones_cache: Mutex::new(None),
-            video_libraries_cache: Mutex::new(None),
+            pull_zones_cache: ListCache::new(),
+            video_libraries_cache: ListCache::new(),
         })
     }
 
     pub fn clear_cycle_cache(&self) {
-        clear_list_cache(&self.pull_zones_cache);
-        clear_list_cache(&self.video_libraries_cache);
+        self.pull_zones_cache.clear();
+        self.video_libraries_cache.clear();
     }
 
     fn build_get(
@@ -77,13 +100,13 @@ impl ApiClient {
         url: String,
         access_key: Option<&str>,
     ) -> Result<reqwest_middleware::RequestBuilder> {
-        let mut req = self.client.get(url);
+        let mut request = self.client.get(url);
         if let Some(key) = access_key {
             let mut header = reqwest::header::HeaderValue::from_str(key)?;
             header.set_sensitive(true);
-            req = req.header(ACCESS_KEY_HEADER, header);
+            request = request.header(ACCESS_KEY_HEADER, header);
         }
-        Ok(req)
+        Ok(request)
     }
 
     async fn get_all_items<T>(
@@ -137,7 +160,9 @@ impl ApiClient {
         loop {
             let url = cursor.as_ref().map_or_else(
                 || format!("{base_url}/{url_path}?limit={ITEMS_PER_PAGE}"),
-                |c| format!("{base_url}/{url_path}?limit={ITEMS_PER_PAGE}&nextCursor={c}"),
+                |next_cursor| {
+                    format!("{base_url}/{url_path}?limit={ITEMS_PER_PAGE}&nextCursor={next_cursor}")
+                },
             );
 
             let mut page = self
@@ -216,7 +241,7 @@ impl ApiClient {
         base_url: &str,
         url_path: &str,
         id: I,
-        stats_path: &str,
+        statistics_path: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
         access_key: Option<&str>,
@@ -230,7 +255,7 @@ impl ApiClient {
 
         self.get_single::<T>(
             base_url,
-            &format!("{url_path}/{id}/{stats_path}?dateFrom={from_date}&dateTo={to_date}"),
+            &format!("{url_path}/{id}/{statistics_path}?dateFrom={from_date}&dateTo={to_date}"),
             access_key,
         )
         .await
@@ -287,7 +312,7 @@ impl ApiClient {
     }
 
     pub async fn list_video_libraries(&self) -> Result<Arc<Vec<VideoLibrary>>> {
-        if let Some(cached) = read_list_cache(&self.video_libraries_cache) {
+        if let Some(cached) = self.video_libraries_cache.read() {
             debug!("Reusing cached video libraries");
             return Ok(cached);
         }
@@ -296,7 +321,7 @@ impl ApiClient {
             self.get_all_items::<VideoLibrary>(API_BASE_URL, "videolibrary", None)
                 .await?,
         );
-        write_list_cache(&self.video_libraries_cache, &libraries);
+        self.video_libraries_cache.store(&libraries);
         Ok(libraries)
     }
 
@@ -356,7 +381,7 @@ impl ApiClient {
     }
 
     pub async fn list_pull_zones(&self) -> Result<Arc<Vec<PullZone>>> {
-        if let Some(cached) = read_list_cache(&self.pull_zones_cache) {
+        if let Some(cached) = self.pull_zones_cache.read() {
             debug!("Reusing cached pull zones");
             return Ok(cached);
         }
@@ -365,7 +390,7 @@ impl ApiClient {
             self.get_all_items::<PullZone>(API_BASE_URL, "pullzone", None)
                 .await?,
         );
-        write_list_cache(&self.pull_zones_cache, &zones);
+        self.pull_zones_cache.store(&zones);
         Ok(zones)
     }
 
@@ -451,7 +476,7 @@ impl ApiClient {
 
     pub async fn get_application_stats(
         &self,
-        app_id: &str,
+        application_id: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<ApplicationStats> {
@@ -461,7 +486,7 @@ impl ApiClient {
         self.get_single::<ApplicationStats>(
             API_BASE_URL,
             &format!(
-                "mc/apps/{app_id}/statistics?fromDate={from_date}&toDate={to_date}&granularity=daily"
+                "mc/apps/{application_id}/statistics?fromDate={from_date}&toDate={to_date}&granularity=daily"
             ),
             None,
         )
@@ -520,18 +545,6 @@ impl ApiClient {
             .await?;
         Ok(wrapper.data)
     }
-}
-
-fn read_list_cache<T>(cache: &Mutex<Option<Arc<Vec<T>>>>) -> Option<Arc<Vec<T>>> {
-    cache.lock().unwrap_or_else(PoisonError::into_inner).clone()
-}
-
-fn write_list_cache<T>(cache: &Mutex<Option<Arc<Vec<T>>>>, value: &Arc<Vec<T>>) {
-    *cache.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(value));
-}
-
-fn clear_list_cache<T>(cache: &Mutex<Option<Arc<Vec<T>>>>) {
-    *cache.lock().unwrap_or_else(PoisonError::into_inner) = None;
 }
 
 #[derive(Deserialize)]

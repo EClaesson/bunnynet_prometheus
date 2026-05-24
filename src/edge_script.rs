@@ -13,10 +13,6 @@ use crate::entity_stats::{
 
 pub type EdgeScriptStatsState = EntityStatsState<EdgeScriptKind>;
 
-const REQUESTS_SERVED: &str = "requests_served";
-const TOTAL_CPU_TIME: &str = "total_cpu_time";
-const AVERAGE_CPU_TIME: &str = "average_cpu_time";
-
 pub struct EdgeScriptKind;
 
 impl EntityType for EdgeScriptKind {
@@ -33,8 +29,8 @@ impl EntityType for EdgeScriptKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<EdgeScript>>> {
-        Box::pin(async move { client.list_edge_scripts().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<EdgeScript>>> {
+        Box::pin(async move { api_client.list_edge_scripts().await })
     }
 
     fn fetch_day<'a>(
@@ -43,18 +39,19 @@ impl EntityType for EdgeScriptKind {
         date: NaiveDate,
     ) -> FetchFuture<'a, EdgeScriptDayData> {
         Box::pin(async move {
-            let stats = client.get_edge_script_stats(script.id, date, date).await?;
+            let statistics = client.get_edge_script_stats(script.id, date, date).await?;
 
             let requests_served = f64_to_u64(
-                find_chart_value_for_date(&stats.requests_served_chart, date)
-                    .context(REQUESTS_SERVED)?,
+                find_chart_value_for_date(&statistics.requests_served_chart, date)
+                    .context("requests_served")?,
             );
             let total_cpu_time = f64_to_u64(
-                find_chart_value_for_date(&stats.total_cpu_time_chart, date)
-                    .context(TOTAL_CPU_TIME)?,
+                find_chart_value_for_date(&statistics.total_cpu_time_chart, date)
+                    .context("total_cpu_time")?,
             );
-            let average_cpu_time = find_chart_value_for_date(&stats.average_cpu_time_chart, date)
-                .context(AVERAGE_CPU_TIME)?;
+            let average_cpu_time =
+                find_chart_value_for_date(&statistics.average_cpu_time_chart, date)
+                    .context("average_cpu_time")?;
 
             Ok(EdgeScriptDayData {
                 requests_served,
@@ -65,16 +62,18 @@ impl EntityType for EdgeScriptKind {
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         script: &'a EdgeScript,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, EdgeScriptDayData> {
         Box::pin(async move {
-            let stats = client.get_edge_script_stats(script.id, from, to).await?;
+            let statistics = api_client
+                .get_edge_script_stats(script.id, from, to)
+                .await?;
 
-            let requests_served = sum_chart_f64_as_u64(&stats.requests_served_chart);
-            let total_cpu_time = sum_chart_f64_as_u64(&stats.total_cpu_time_chart);
+            let requests_served = sum_chart_f64_as_u64(&statistics.requests_served_chart);
+            let total_cpu_time = sum_chart_f64_as_u64(&statistics.total_cpu_time_chart);
 
             Ok(EdgeScriptDayData {
                 requests_served,
@@ -108,9 +107,9 @@ impl DayData for EdgeScriptDayData {
         self.total_cpu_time += day.total_cpu_time;
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.requests_served = self.requests_served.max(snap.requests_served);
-        self.total_cpu_time = self.total_cpu_time.max(snap.total_cpu_time);
-        self.average_cpu_time = snap.average_cpu_time;
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.requests_served = self.requests_served.max(snapshot.requests_served);
+        self.total_cpu_time = self.total_cpu_time.max(snapshot.total_cpu_time);
+        self.average_cpu_time = snapshot.average_cpu_time;
     }
 }

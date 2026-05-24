@@ -8,16 +8,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::bunny::{ApiClient, PullZone};
 use crate::entity_stats::{
-    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date,
-    sum_chart_values,
+    DayData, EntityStatsState, EntityType, FetchFuture, find_chart_value_for_date, sum_chart_values,
 };
 
 pub type PullZoneOptimizerStatsState = EntityStatsState<PullZoneOptimizerKind>;
-
-const REQUESTS_OPTIMIZED: &str = "requests_optimized";
-const TRAFFIC_SAVED: &str = "traffic_saved";
-const AVERAGE_COMPRESSION: &str = "average_compression";
-const AVERAGE_PROCESSING_TIME: &str = "average_processing_time";
 
 pub struct PullZoneOptimizerKind;
 
@@ -35,31 +29,32 @@ impl EntityType for PullZoneOptimizerKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
-        Box::pin(async move { client.list_pull_zones().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<PullZone>>> {
+        Box::pin(async move { api_client.list_pull_zones().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a PullZone,
         date: NaiveDate,
     ) -> FetchFuture<'a, PullZoneOptimizerDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_pull_zone_optimizer_stats(zone.id, date, date)
                 .await?;
 
             let requests_optimized =
-                chart_value_or_default(stats.requests_optimized_chart.as_ref(), date)
-                    .context(REQUESTS_OPTIMIZED)?;
-            let traffic_saved = chart_value_or_default(stats.traffic_saved_chart.as_ref(), date)
-                .context(TRAFFIC_SAVED)?;
+                chart_value_or_default(statistics.requests_optimized_chart.as_ref(), date)
+                    .context("requests_optimized")?;
+            let traffic_saved =
+                chart_value_or_default(statistics.traffic_saved_chart.as_ref(), date)
+                    .context("traffic_saved")?;
             let average_compression =
-                chart_value_or_default(stats.average_compression_chart.as_ref(), date)
-                    .context(AVERAGE_COMPRESSION)?;
+                chart_value_or_default(statistics.average_compression_chart.as_ref(), date)
+                    .context("average_compression")?;
             let average_processing_time =
-                chart_value_or_default(stats.average_processing_time_chart.as_ref(), date)
-                    .context(AVERAGE_PROCESSING_TIME)?;
+                chart_value_or_default(statistics.average_processing_time_chart.as_ref(), date)
+                    .context("average_processing_time")?;
 
             Ok(PullZoneOptimizerDayData {
                 requests_optimized,
@@ -71,22 +66,22 @@ impl EntityType for PullZoneOptimizerKind {
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a PullZone,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, PullZoneOptimizerDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_pull_zone_optimizer_stats(zone.id, from, to)
                 .await?;
 
-            let requests_optimized = stats
+            let requests_optimized = statistics
                 .requests_optimized_chart
                 .as_ref()
                 .map(sum_chart_values)
                 .unwrap_or_default();
-            let traffic_saved = stats
+            let traffic_saved = statistics
                 .traffic_saved_chart
                 .as_ref()
                 .map(sum_chart_values)
@@ -127,7 +122,10 @@ fn chart_value_or_default<V: Copy + Default>(
     chart: Option<&HashMap<String, V>>,
     date: NaiveDate,
 ) -> Result<V> {
-    chart.map_or_else(|| Ok(V::default()), |c| find_chart_value_for_date(c, date))
+    chart.map_or_else(
+        || Ok(V::default()),
+        |chart_inner| find_chart_value_for_date(chart_inner, date),
+    )
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -144,10 +142,10 @@ impl DayData for PullZoneOptimizerDayData {
         self.traffic_saved += day.traffic_saved;
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.requests_optimized = self.requests_optimized.max(snap.requests_optimized);
-        self.traffic_saved = self.traffic_saved.max(snap.traffic_saved);
-        self.average_compression = snap.average_compression;
-        self.average_processing_time = snap.average_processing_time;
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.requests_optimized = self.requests_optimized.max(snapshot.requests_optimized);
+        self.traffic_saved = self.traffic_saved.max(snapshot.traffic_saved);
+        self.average_compression = snapshot.average_compression;
+        self.average_processing_time = snapshot.average_processing_time;
     }
 }

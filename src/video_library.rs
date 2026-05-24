@@ -13,9 +13,6 @@ use crate::entity_stats::{
 
 pub type VideoLibraryStatsState = EntityStatsState<VideoLibraryKind>;
 
-const VIEWS: &str = "views";
-const WATCH_TIME: &str = "watch_time";
-
 pub struct VideoLibraryKind;
 
 impl EntityType for VideoLibraryKind {
@@ -32,49 +29,50 @@ impl EntityType for VideoLibraryKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<VideoLibrary>>> {
-        Box::pin(async move { client.list_video_libraries().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<VideoLibrary>>> {
+        Box::pin(async move { api_client.list_video_libraries().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         date: NaiveDate,
     ) -> FetchFuture<'a, VideoLibraryDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_video_library_stats(library.id, Some(&library.read_only_api_key), date, date)
                 .await?;
 
-            let views = find_chart_value_for_date(&stats.views_chart, date).context(VIEWS)?;
-            let watch_time =
-                find_chart_value_for_date(&stats.watch_time_chart, date).context(WATCH_TIME)?;
+            let views =
+                find_chart_value_for_date(&statistics.views_chart, date).context("views")?;
+            let watch_time = find_chart_value_for_date(&statistics.watch_time_chart, date)
+                .context("watch_time")?;
 
             Ok(VideoLibraryDayData {
                 views,
                 watch_time,
-                country_views: stats.country_view_counts,
-                country_watch_time: stats.country_watch_time,
+                country_views: statistics.country_view_counts,
+                country_watch_time: statistics.country_watch_time,
             })
         })
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, VideoLibraryDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_video_library_stats(library.id, Some(&library.read_only_api_key), from, to)
                 .await?;
 
             Ok(VideoLibraryDayData {
-                views: sum_chart_values(&stats.views_chart),
-                watch_time: sum_chart_values(&stats.watch_time_chart),
-                country_views: stats.country_view_counts,
-                country_watch_time: stats.country_watch_time,
+                views: sum_chart_values(&statistics.views_chart),
+                watch_time: sum_chart_values(&statistics.watch_time_chart),
+                country_views: statistics.country_view_counts,
+                country_watch_time: statistics.country_watch_time,
             })
         })
     }
@@ -129,14 +127,14 @@ impl DayData for VideoLibraryDayData {
         }
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.views = self.views.max(snap.views);
-        self.watch_time = self.watch_time.max(snap.watch_time);
-        for (country, value) in snap.country_views {
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.views = self.views.max(snapshot.views);
+        self.watch_time = self.watch_time.max(snapshot.watch_time);
+        for (country, value) in snapshot.country_views {
             let entry = self.country_views.entry(country).or_default();
             *entry = (*entry).max(value);
         }
-        for (country, value) in snap.country_watch_time {
+        for (country, value) in snapshot.country_watch_time {
             let entry = self.country_watch_time.entry(country).or_default();
             *entry = (*entry).max(value);
         }

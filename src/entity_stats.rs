@@ -19,7 +19,7 @@ pub type FetchFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a
 
 pub trait DayData: Default + Clone + Serialize + DeserializeOwned + Send + 'static {
     fn accumulate(&mut self, day: Self);
-    fn merge_latest(&mut self, snap: Self);
+    fn merge_latest(&mut self, snapshot: Self);
 }
 
 pub trait EntityType: Sized + Send + Sync + 'static {
@@ -31,28 +31,28 @@ pub trait EntityType: Sized + Send + Sync + 'static {
     fn entity_id(entity: &Self::Entity) -> String;
     fn entity_label(entity: &Self::Entity) -> String;
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<Self::Entity>>>;
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<Self::Entity>>>;
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         entity: &'a Self::Entity,
         date: NaiveDate,
     ) -> FetchFuture<'a, Self::DayData>;
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         entity: &'a Self::Entity,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, Self::DayData> {
         Box::pin(async move {
-            let mut acc = Self::DayData::default();
+            let mut accumulator = Self::DayData::default();
             let mut cursor = from;
             while cursor <= to {
-                let day = Self::fetch_day(client, entity, cursor).await?;
-                acc.accumulate(day);
+                let day = Self::fetch_day(api_client, entity, cursor).await?;
+                accumulator.accumulate(day);
                 cursor += chrono::TimeDelta::days(1);
             }
-            Ok(acc)
+            Ok(accumulator)
         })
     }
 
@@ -115,13 +115,13 @@ impl<E: EntityType> Clone for EntityEntry<E> {
 }
 
 impl<E: EntityType> State for EntityStatsState<E> {
-    fn poll(&mut self, client: Arc<ApiClient>, concurrency: usize) -> PollFuture<'_> {
+    fn poll(&mut self, api_client: Arc<ApiClient>, concurrency: usize) -> PollFuture<'_> {
         Box::pin(async move {
             let mut new_state = Self {
                 entities: self.entities.clone(),
                 last_entity_count: self.last_entity_count,
             };
-            new_state.try_poll(client, concurrency).await?;
+            new_state.try_poll(api_client, concurrency).await?;
             *self = new_state;
             Ok(())
         })
@@ -143,9 +143,9 @@ impl<E: EntityType> EntityStatsState<E> {
 
         match self.last_entity_count {
             None => info!(collector = E::LOG_LABEL, count, "Monitoring entities",),
-            Some(prev) if prev != count => info!(
+            Some(previous) if previous != count => info!(
                 collector = E::LOG_LABEL,
-                previous = prev,
+                previous = previous,
                 current = count,
                 "Entity count changed",
             ),
@@ -153,13 +153,10 @@ impl<E: EntityType> EntityStatsState<E> {
         }
         self.last_entity_count = Some(count);
 
-        let mut live_ids: HashSet<String> = HashSet::with_capacity(entities.len());
-        for entity in entities.iter() {
-            live_ids.insert(E::entity_id(entity));
-        }
+        let live_ids: HashSet<String> = entities.iter().map(E::entity_id).collect();
 
         let semaphore = Arc::new(Semaphore::new(concurrency.max(1)));
-        let mut set: JoinSet<Result<(String, EntityEntry<E>)>> = JoinSet::new();
+        let mut join_set: JoinSet<Result<(String, EntityEntry<E>)>> = JoinSet::new();
 
         for (idx, entity) in entities.iter().enumerate() {
             let id = E::entity_id(entity);
@@ -170,7 +167,7 @@ impl<E: EntityType> EntityStatsState<E> {
             let semaphore = Arc::clone(&semaphore);
             let client = Arc::clone(&client);
 
-            set.spawn(async move {
+            join_set.spawn(async move {
                 let _permit = semaphore.acquire().await?;
                 let entity = &entities[idx];
                 update_entry::<E>(&client, entity, &id, &mut entry, today, yesterday).await?;
@@ -178,29 +175,29 @@ impl<E: EntityType> EntityStatsState<E> {
             });
         }
 
-        let mut first_err: Option<anyhow::Error> = None;
-        while let Some(joined) = set.join_next().await {
+        let mut first_error: Option<anyhow::Error> = None;
+        while let Some(joined) = join_set.join_next().await {
             match joined {
-                Ok(Ok((id, entry))) if first_err.is_none() => {
+                Ok(Ok((id, entry))) if first_error.is_none() => {
                     self.entities.insert(id, entry);
                 }
                 Ok(Ok(_)) => {}
                 Ok(Err(e)) => {
-                    if first_err.is_none() {
-                        first_err = Some(e);
-                        set.abort_all();
+                    if first_error.is_none() {
+                        first_error = Some(e);
+                        join_set.abort_all();
                     }
                 }
                 Err(e) => {
-                    if first_err.is_none() {
-                        first_err = Some(e.into());
-                        set.abort_all();
+                    if first_error.is_none() {
+                        first_error = Some(e.into());
+                        join_set.abort_all();
                     }
                 }
             }
         }
 
-        if let Some(e) = first_err {
+        if let Some(e) = first_error {
             return Err(e);
         }
 
@@ -220,7 +217,7 @@ impl<E: EntityType> EntityStatsState<E> {
 }
 
 async fn update_entry<E: EntityType>(
-    client: &ApiClient,
+    api_client: &ApiClient,
     entity: &E::Entity,
     id: &str,
     entry: &mut EntityEntry<E>,
@@ -241,7 +238,7 @@ async fn update_entry<E: EntityType>(
             days,
             "Backfilling missed days",
         );
-        let backfill = E::fetch_range(client, entity, first, yesterday).await?;
+        let backfill = E::fetch_range(api_client, entity, first, yesterday).await?;
         entry.last_complete_day_state.accumulate(backfill);
         entry.last_complete_day = Some(yesterday);
         entry.current_day_state = E::DayData::default();
@@ -256,8 +253,8 @@ async fn update_entry<E: EntityType>(
         date = %today,
         "Fetching day (current)",
     );
-    let snap = E::fetch_day(client, entity, today).await?;
-    entry.current_day_state.merge_latest(snap);
+    let snapshot = E::fetch_day(api_client, entity, today).await?;
+    entry.current_day_state.merge_latest(snapshot);
 
     Ok(())
 }
@@ -288,11 +285,7 @@ pub fn sum_chart_f64_as_u64(chart: &HashMap<String, f64>) -> u64 {
     chart.values().copied().map(f64_to_u64).sum()
 }
 
-pub fn sum_chart_values_in_range<V>(
-    chart: &HashMap<String, V>,
-    from: NaiveDate,
-    to: NaiveDate,
-) -> V
+pub fn sum_chart_values_in_range<V>(chart: &HashMap<String, V>, from: NaiveDate, to: NaiveDate) -> V
 where
     V: Copy + std::iter::Sum<V>,
 {
@@ -320,8 +313,8 @@ pub fn find_chart_value_for_date_lenient<V: Copy>(
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-pub const fn f64_to_u64(v: f64) -> u64 {
-    if v < 0.0 { 0 } else { v as u64 }
+pub const fn f64_to_u64(value: f64) -> u64 {
+    if value < 0.0 { 0 } else { value as u64 }
 }
 
 pub fn emit_labeled_counter(

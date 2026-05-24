@@ -35,11 +35,11 @@ const ENV_ACCESS_KEY: &str = "BUNNYNET_ACCESS_KEY";
 
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
-    let args = CliArgs::parse();
+    let cli_args = CliArgs::parse();
 
-    let log_filter = if args.quiet {
+    let log_filter = if cli_args.quiet {
         tracing_subscriber::EnvFilter::new("warn")
-    } else if args.verbose {
+    } else if cli_args.verbose {
         tracing_subscriber::EnvFilter::new(
             "debug,reqwest=info,hyper=info,hyper_util=info,h2=info,rustls=info,reqwest_middleware=info,reqwest_retry=info",
         )
@@ -53,7 +53,7 @@ async fn main() -> std::process::ExitCode {
         .with_target(false)
         .init();
 
-    match run_server(&args).await {
+    match run_server(&cli_args).await {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(e) => {
             error!("Server failed: {e:#}");
@@ -62,38 +62,34 @@ async fn main() -> std::process::ExitCode {
     }
 }
 
-async fn run_server(args: &CliArgs) -> Result<()> {
-    let poll_interval = Duration::from_secs(args.poll_interval);
-    let access_key = resolve_access_key(args)?;
-    let api_request_timeout = Duration::from_secs(args.api_request_timeout);
-    let client = Arc::new(create_api_client(
-        &access_key,
-        api_request_timeout,
-        poll_interval,
-    )?);
-    std::fs::create_dir_all(&args.state_dir)
-        .with_context(|| format!("Failed to create state dir: {}", args.state_dir.display()))?;
-    let exporter = build_prometheus_exporter(args.bind_addr, args.bind_port)?;
+async fn run_server(cli_args: &CliArgs) -> Result<()> {
+    let poll_interval = Duration::from_secs(cli_args.poll_interval);
+    let access_key = resolve_access_key(cli_args)?;
+    let api_request_timeout = Duration::from_secs(cli_args.api_request_timeout);
+
+    let api_client = Arc::new(
+        ApiClient::new(&access_key, api_request_timeout, poll_interval)
+            .context("Failed to create Bunny.net API client")?,
+    );
+
+    std::fs::create_dir_all(&cli_args.state_dir).with_context(|| {
+        format!(
+            "Failed to create state dir: {}",
+            cli_args.state_dir.display()
+        )
+    })?;
+    let prometheus_exporter = build_prometheus_exporter(cli_args.bind_addr, cli_args.bind_port)?;
     start_poller_loop(
-        client,
-        &args.collectors,
-        &args.state_dir,
+        api_client,
+        &cli_args.collectors,
+        &cli_args.state_dir,
         poll_interval,
-        args.api_concurrency,
-        exporter,
+        cli_args.api_concurrency,
+        prometheus_exporter,
     )
     .await?;
 
     Ok(())
-}
-
-fn create_api_client(
-    access_key: &str,
-    api_request_timeout: Duration,
-    poll_interval: Duration,
-) -> Result<ApiClient> {
-    ApiClient::new(access_key, api_request_timeout, poll_interval)
-        .context("Failed to create Bunny.net API client")
 }
 
 fn build_prometheus_exporter(
@@ -123,10 +119,17 @@ async fn start_poller_loop(
 ) -> Result<()> {
     let mut states: Vec<(Collector, Box<dyn State>)> = collectors
         .iter()
-        .map(|c| c.load_state(state_dir).map(|s| (*c, s)))
+        .map(|collector| {
+            collector
+                .load_state(state_dir)
+                .map(|state| (*collector, state))
+        })
         .collect::<Result<_>>()?;
 
-    let enabled: Vec<&str> = collectors.iter().map(|c| c.name()).collect();
+    let enabled: Vec<&str> = collectors
+        .iter()
+        .map(|collector| collector.name())
+        .collect();
     info!(
         poll_interval_seconds = poll_interval.as_secs(),
         api_concurrency,
@@ -219,11 +222,11 @@ async fn shutdown_signal() {
     }
 }
 
-fn resolve_access_key(args: &CliArgs) -> Result<String> {
-    let raw = if let Some(key) = &args.access_key {
+fn resolve_access_key(cli_args: &CliArgs) -> Result<String> {
+    let raw = if let Some(key) = &cli_args.access_key {
         debug!("Read access key from cli parameter");
         key.clone()
-    } else if let Some(path) = &args.access_key_file {
+    } else if let Some(path) = &cli_args.access_key_file {
         debug!("Read access key from file");
         std::fs::read_to_string(path).context("Failed to read access key from file")?
     } else if let Ok(key) = std::env::var(ENV_ACCESS_KEY) {

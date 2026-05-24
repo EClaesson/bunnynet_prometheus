@@ -13,8 +13,6 @@ use crate::entity_stats::{
 
 pub type VideoLibraryDrmStatsState = EntityStatsState<VideoLibraryDrmKind>;
 
-const LICENSES_ISSUED: &str = "licenses_issued";
-
 pub struct VideoLibraryDrmKind;
 
 impl EntityType for VideoLibraryDrmKind {
@@ -31,23 +29,23 @@ impl EntityType for VideoLibraryDrmKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<VideoLibrary>>> {
-        Box::pin(async move { client.list_video_libraries().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<VideoLibrary>>> {
+        Box::pin(async move { api_client.list_video_libraries().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         date: NaiveDate,
     ) -> FetchFuture<'a, VideoLibraryDrmDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_video_library_drm_stats(library.id, date, date)
                 .await?;
 
             let licenses_issued = f64_to_u64(
-                find_chart_value_for_date(&stats.licenses_issued_chart, date)
-                    .context(LICENSES_ISSUED)?,
+                find_chart_value_for_date(&statistics.licenses_issued_chart, date)
+                    .context("licenses_issued")?,
             );
 
             Ok(VideoLibraryDrmDayData { licenses_issued })
@@ -55,17 +53,17 @@ impl EntityType for VideoLibraryDrmKind {
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, VideoLibraryDrmDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_video_library_drm_stats(library.id, from, to)
                 .await?;
 
-            let licenses_issued = sum_chart_f64_as_u64(&stats.licenses_issued_chart);
+            let licenses_issued = sum_chart_f64_as_u64(&statistics.licenses_issued_chart);
 
             Ok(VideoLibraryDrmDayData { licenses_issued })
         })
@@ -94,7 +92,7 @@ impl DayData for VideoLibraryDrmDayData {
         self.licenses_issued += day.licenses_issued;
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.licenses_issued = self.licenses_issued.max(snap.licenses_issued);
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.licenses_issued = self.licenses_issued.max(snapshot.licenses_issued);
     }
 }

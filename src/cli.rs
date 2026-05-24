@@ -5,8 +5,8 @@ use clap::Parser;
 
 use crate::collector::Collector;
 
-fn expand_path(s: &str) -> Result<PathBuf, shellexpand::LookupError<std::env::VarError>> {
-    shellexpand::full(s).map(|cow| PathBuf::from(cow.as_ref()))
+fn expand_path(path: &str) -> Result<PathBuf, shellexpand::LookupError<std::env::VarError>> {
+    shellexpand::full(path).map(|cow| PathBuf::from(cow.as_ref()))
 }
 
 #[derive(Parser, Debug)]

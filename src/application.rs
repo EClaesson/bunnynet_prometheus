@@ -9,19 +9,10 @@ use serde::{Deserialize, Serialize};
 use crate::bunny::{ApiClient, Application, ApplicationVolumeChart};
 use crate::entity_stats::{
     DayData, EntityStatsState, EntityType, FetchFuture, f64_to_u64, find_chart_value_for_date,
+    sum_chart_f64_as_u64,
 };
 
 pub type ApplicationStatsState = EntityStatsState<ApplicationKind>;
-
-const TARGET_LATENCY: &str = "target_latency";
-const ACTIVE_REGIONS: &str = "active_regions";
-const LATENCY: &str = "latency";
-const INSTANCES: &str = "instances";
-const CPU_USAGE: &str = "cpu_usage";
-const RAM_USAGE: &str = "ram_usage";
-const TRAFFIC: &str = "traffic";
-const VOLUME_USAGE: &str = "volume_usage";
-const VOLUME_CAPACITY: &str = "volume_capacity";
 
 pub struct ApplicationKind;
 
@@ -39,39 +30,43 @@ impl EntityType for ApplicationKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<Application>>> {
-        Box::pin(async move { client.list_applications().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<Application>>> {
+        Box::pin(async move { api_client.list_applications().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
-        app: &'a Application,
+        api_client: &'a ApiClient,
+        application: &'a Application,
         date: NaiveDate,
     ) -> FetchFuture<'a, ApplicationDayData> {
         Box::pin(async move {
-            let stats = client.get_application_stats(&app.id, date, date).await?;
+            let statistics = api_client
+                .get_application_stats(&application.id, date, date)
+                .await?;
 
-            let target_latency = find_chart_value_for_date(&stats.target_latency_chart, date)
-                .context(TARGET_LATENCY)?;
-            let active_regions = find_chart_value_for_date(&stats.active_regions_chart, date)
-                .context(ACTIVE_REGIONS)?
+            let target_latency = find_chart_value_for_date(&statistics.target_latency_chart, date)
+                .context("target_latency")?;
+            let active_regions = find_chart_value_for_date(&statistics.active_regions_chart, date)
+                .context("active_regions")?
                 .unwrap_or(0.0);
-            let latency = find_chart_value_for_date(&stats.latency_chart, date).context(LATENCY)?;
-            let instances = find_chart_value_for_date(&stats.instances_chart, date)
-                .context(INSTANCES)?
+            let latency =
+                find_chart_value_for_date(&statistics.latency_chart, date).context("latency")?;
+            let instances = find_chart_value_for_date(&statistics.instances_chart, date)
+                .context("instances")?
                 .unwrap_or(0.0);
-            let cpu_usage =
-                find_chart_value_for_date(&stats.cpu_usage_chart, date).context(CPU_USAGE)?;
-            let ram_usage =
-                find_chart_value_for_date(&stats.ram_usage_chart, date).context(RAM_USAGE)?;
-            let traffic =
-                f64_to_u64(find_chart_value_for_date(&stats.traffic_chart, date).context(TRAFFIC)?);
+            let cpu_usage = find_chart_value_for_date(&statistics.cpu_usage_chart, date)
+                .context("cpu_usage")?;
+            let ram_usage = find_chart_value_for_date(&statistics.ram_usage_chart, date)
+                .context("ram_usage")?;
+            let traffic = f64_to_u64(
+                find_chart_value_for_date(&statistics.traffic_chart, date).context("traffic")?,
+            );
             let volume_usage =
-                extract_volume_chart_for_date(&stats.volumes_split_usage_chart, date)
-                    .context(VOLUME_USAGE)?;
+                extract_volume_chart_for_date(&statistics.volumes_split_usage_chart, date)
+                    .context("volume_usage")?;
             let volume_capacity =
-                extract_volume_chart_for_date(&stats.volumes_split_capacity_chart, date)
-                    .context(VOLUME_CAPACITY)?;
+                extract_volume_chart_for_date(&statistics.volumes_split_capacity_chart, date)
+                    .context("volume_capacity")?;
 
             Ok(ApplicationDayData {
                 target_latency,
@@ -87,8 +82,31 @@ impl EntityType for ApplicationKind {
         })
     }
 
+    fn fetch_range<'a>(
+        api_client: &'a ApiClient,
+        application: &'a Application,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> FetchFuture<'a, ApplicationDayData> {
+        Box::pin(async move {
+            let statistics = api_client
+                .get_application_stats(&application.id, from, to)
+                .await?;
+
+            Ok(ApplicationDayData {
+                traffic: sum_chart_f64_as_u64(&statistics.traffic_chart),
+                ..ApplicationDayData::default()
+            })
+        })
+    }
+
     fn emit_metrics(id: &str, name: &str, last: &ApplicationDayData, current: &ApplicationDayData) {
-        let labels = [("app_id", id.to_string()), ("name", name.to_string())];
+        let application_id = id.to_string();
+        let application_name = name.to_string();
+        let labels = [
+            ("app_id", application_id.clone()),
+            ("name", application_name.clone()),
+        ];
 
         gauge!("bunnynet.application.target_latency", &labels).set(current.target_latency);
         gauge!("bunnynet.application.active_regions", &labels).set(current.active_regions);
@@ -101,8 +119,8 @@ impl EntityType for ApplicationKind {
         for (volume, value) in &current.volume_usage {
             gauge!(
                 "bunnynet.application.volume_usage",
-                "app_id" => id.to_string(),
-                "name" => name.to_string(),
+                "app_id" => application_id.clone(),
+                "name" => application_name.clone(),
                 "volume" => volume.clone(),
             )
             .set(*value);
@@ -111,8 +129,8 @@ impl EntityType for ApplicationKind {
         for (volume, value) in &current.volume_capacity {
             gauge!(
                 "bunnynet.application.volume_capacity",
-                "app_id" => id.to_string(),
-                "name" => name.to_string(),
+                "app_id" => application_id.clone(),
+                "name" => application_name.clone(),
                 "volume" => volume.clone(),
             )
             .set(*value);
@@ -151,15 +169,15 @@ impl DayData for ApplicationDayData {
         self.traffic += day.traffic;
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.target_latency = snap.target_latency;
-        self.active_regions = snap.active_regions;
-        self.latency = snap.latency;
-        self.instances = snap.instances;
-        self.cpu_usage = snap.cpu_usage;
-        self.ram_usage = snap.ram_usage;
-        self.traffic = self.traffic.max(snap.traffic);
-        self.volume_usage = snap.volume_usage;
-        self.volume_capacity = snap.volume_capacity;
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.target_latency = snapshot.target_latency;
+        self.active_regions = snapshot.active_regions;
+        self.latency = snapshot.latency;
+        self.instances = snapshot.instances;
+        self.cpu_usage = snapshot.cpu_usage;
+        self.ram_usage = snapshot.ram_usage;
+        self.traffic = self.traffic.max(snapshot.traffic);
+        self.volume_usage = snapshot.volume_usage;
+        self.volume_capacity = snapshot.volume_capacity;
     }
 }

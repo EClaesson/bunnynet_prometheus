@@ -13,9 +13,6 @@ use crate::entity_stats::{
 
 pub type DnsZoneStatsState = EntityStatsState<DnsZoneKind>;
 
-const NORMAL_QUERIES_SERVED: &str = "normal_queries_served";
-const SMART_QUERIES_SERVED: &str = "smart_queries_served";
-
 pub struct DnsZoneKind;
 
 impl EntityType for DnsZoneKind {
@@ -32,29 +29,29 @@ impl EntityType for DnsZoneKind {
         entity.domain.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<DnsZone>>> {
-        Box::pin(async move { client.list_dns_zones().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<DnsZone>>> {
+        Box::pin(async move { api_client.list_dns_zones().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a DnsZone,
         date: NaiveDate,
     ) -> FetchFuture<'a, DnsDayData> {
         Box::pin(async move {
-            let stats = client.get_dns_zone_stats(zone.id, date, date).await?;
+            let statistics = api_client.get_dns_zone_stats(zone.id, date, date).await?;
 
             let normal_queries_served = f64_to_u64(
-                find_chart_value_for_date(&stats.normal_queries_served_chart, date)
-                    .context(NORMAL_QUERIES_SERVED)?,
+                find_chart_value_for_date(&statistics.normal_queries_served_chart, date)
+                    .context("normal_queries_served")?,
             );
             let smart_queries_served = f64_to_u64(
-                find_chart_value_for_date(&stats.smart_queries_served_chart, date)
-                    .context(SMART_QUERIES_SERVED)?,
+                find_chart_value_for_date(&statistics.smart_queries_served_chart, date)
+                    .context("smart_queries_served")?,
             );
 
             let mut queries_served_per_type = QueriesByTypeChart::new();
-            for (type_num, value) in &stats.queries_by_type_chart {
+            for (type_num, value) in &statistics.queries_by_type_chart {
                 queries_served_per_type.insert(dns_type_name(type_num).to_string(), *value);
             }
 
@@ -67,19 +64,20 @@ impl EntityType for DnsZoneKind {
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         zone: &'a DnsZone,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, DnsDayData> {
         Box::pin(async move {
-            let stats = client.get_dns_zone_stats(zone.id, from, to).await?;
+            let statistics = api_client.get_dns_zone_stats(zone.id, from, to).await?;
 
-            let normal_queries_served = sum_chart_f64_as_u64(&stats.normal_queries_served_chart);
-            let smart_queries_served = sum_chart_f64_as_u64(&stats.smart_queries_served_chart);
+            let normal_queries_served =
+                sum_chart_f64_as_u64(&statistics.normal_queries_served_chart);
+            let smart_queries_served = sum_chart_f64_as_u64(&statistics.smart_queries_served_chart);
 
             let mut queries_served_per_type = QueriesByTypeChart::new();
-            for (type_num, value) in &stats.queries_by_type_chart {
+            for (type_num, value) in &statistics.queries_by_type_chart {
                 queries_served_per_type.insert(dns_type_name(type_num).to_string(), *value);
             }
 
@@ -125,10 +123,12 @@ impl DayData for DnsDayData {
         }
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.normal_queries_served = self.normal_queries_served.max(snap.normal_queries_served);
-        self.smart_queries_served = self.smart_queries_served.max(snap.smart_queries_served);
-        for (type_str, value) in snap.queries_served_per_type {
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.normal_queries_served = self
+            .normal_queries_served
+            .max(snapshot.normal_queries_served);
+        self.smart_queries_served = self.smart_queries_served.max(snapshot.smart_queries_served);
+        for (type_str, value) in snapshot.queries_served_per_type {
             let entry = self.queries_served_per_type.entry(type_str).or_default();
             *entry = (*entry).max(value);
         }

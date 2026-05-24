@@ -13,8 +13,6 @@ use crate::entity_stats::{
 
 pub type VideoLibraryTranscribingStatsState = EntityStatsState<VideoLibraryTranscribingKind>;
 
-const TRANSCRIPTION_SECONDS: &str = "transcription_seconds";
-
 pub struct VideoLibraryTranscribingKind;
 
 impl EntityType for VideoLibraryTranscribingKind {
@@ -31,23 +29,23 @@ impl EntityType for VideoLibraryTranscribingKind {
         entity.name.clone()
     }
 
-    fn list(client: &ApiClient) -> FetchFuture<'_, Arc<Vec<VideoLibrary>>> {
-        Box::pin(async move { client.list_video_libraries().await })
+    fn list(api_client: &ApiClient) -> FetchFuture<'_, Arc<Vec<VideoLibrary>>> {
+        Box::pin(async move { api_client.list_video_libraries().await })
     }
 
     fn fetch_day<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         date: NaiveDate,
     ) -> FetchFuture<'a, VideoLibraryTranscribingDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_video_library_transcribing_stats(library.id, date, date)
                 .await?;
 
             let transcription_seconds = f64_to_u64(
-                find_chart_value_for_date(&stats.transcription_seconds_chart, date)
-                    .context(TRANSCRIPTION_SECONDS)?,
+                find_chart_value_for_date(&statistics.transcription_seconds_chart, date)
+                    .context("transcription_seconds")?,
             );
 
             Ok(VideoLibraryTranscribingDayData {
@@ -57,17 +55,18 @@ impl EntityType for VideoLibraryTranscribingKind {
     }
 
     fn fetch_range<'a>(
-        client: &'a ApiClient,
+        api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         from: NaiveDate,
         to: NaiveDate,
     ) -> FetchFuture<'a, VideoLibraryTranscribingDayData> {
         Box::pin(async move {
-            let stats = client
+            let statistics = api_client
                 .get_video_library_transcribing_stats(library.id, from, to)
                 .await?;
 
-            let transcription_seconds = sum_chart_f64_as_u64(&stats.transcription_seconds_chart);
+            let transcription_seconds =
+                sum_chart_f64_as_u64(&statistics.transcription_seconds_chart);
 
             Ok(VideoLibraryTranscribingDayData {
                 transcription_seconds,
@@ -98,7 +97,9 @@ impl DayData for VideoLibraryTranscribingDayData {
         self.transcription_seconds += day.transcription_seconds;
     }
 
-    fn merge_latest(&mut self, snap: Self) {
-        self.transcription_seconds = self.transcription_seconds.max(snap.transcription_seconds);
+    fn merge_latest(&mut self, snapshot: Self) {
+        self.transcription_seconds = self
+            .transcription_seconds
+            .max(snapshot.transcription_seconds);
     }
 }
