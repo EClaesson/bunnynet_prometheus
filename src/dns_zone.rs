@@ -241,3 +241,48 @@ fn dns_type_name(type_num: &str) -> &str {
         _ => "UNKNOWN",
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    fn data(normal: u64, smart: u64, types: &[(&str, u64)]) -> DnsDayData {
+        let mut queries_served_per_type = QueriesByTypeChart::new();
+        for (k, v) in types {
+            queries_served_per_type.insert((*k).to_string(), *v);
+        }
+        DnsDayData {
+            normal_queries_served: normal,
+            smart_queries_served: smart,
+            queries_served_per_type,
+        }
+    }
+
+    #[test]
+    fn accumulate_sums_counters_and_overlapping_map_keys() {
+        let mut state = data(10, 20, &[("A", 5), ("AAAA", 7)]);
+        state.accumulate(data(3, 4, &[("A", 2), ("MX", 1)]));
+        assert_eq!(state.normal_queries_served, 13);
+        assert_eq!(state.smart_queries_served, 24);
+        assert_eq!(state.queries_served_per_type.get("A"), Some(&7));
+        assert_eq!(state.queries_served_per_type.get("AAAA"), Some(&7));
+        assert_eq!(state.queries_served_per_type.get("MX"), Some(&1));
+    }
+
+    #[test]
+    fn merge_latest_takes_max_of_counters_and_per_map_key() {
+        let mut state = data(50, 5, &[("A", 10), ("AAAA", 3)]);
+        state.merge_latest(data(30, 100, &[("A", 5), ("MX", 7)]));
+        assert_eq!(state.normal_queries_served, 50);
+        assert_eq!(state.smart_queries_served, 100);
+        assert_eq!(state.queries_served_per_type.get("A"), Some(&10));
+        assert_eq!(state.queries_served_per_type.get("AAAA"), Some(&3));
+        assert_eq!(state.queries_served_per_type.get("MX"), Some(&7));
+    }
+}

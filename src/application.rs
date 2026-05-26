@@ -181,3 +181,104 @@ impl DayData for ApplicationDayData {
         self.volume_capacity = snapshot.volume_capacity;
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::float_cmp,
+    clippy::cast_precision_loss
+)]
+mod tests {
+    use super::*;
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn sample(seed: u64) -> ApplicationDayData {
+        let mut volume_usage = HashMap::new();
+        volume_usage.insert("data".to_string(), seed as f64);
+        let mut volume_capacity = HashMap::new();
+        volume_capacity.insert("data".to_string(), (seed as f64) * 10.0);
+        ApplicationDayData {
+            target_latency: seed as f64,
+            active_regions: (seed as f64) + 1.0,
+            latency: (seed as f64) + 2.0,
+            instances: (seed as f64) + 3.0,
+            cpu_usage: (seed as f64) / 100.0,
+            ram_usage: (seed as f64) / 50.0,
+            traffic: seed * 1000,
+            volume_usage,
+            volume_capacity,
+        }
+    }
+
+    fn volume_chart(volumes: &[(&str, &[(&str, f64)])]) -> ApplicationVolumeChart {
+        let mut chart = ApplicationVolumeChart::new();
+        for (volume, points) in volumes {
+            let series: HashMap<String, f64> =
+                points.iter().map(|(k, v)| ((*k).to_string(), *v)).collect();
+            chart.insert((*volume).to_string(), series);
+        }
+        chart
+    }
+
+    #[test]
+    fn accumulate_sums_traffic_only() {
+        let mut state = sample(10);
+        let original = sample(10);
+        state.accumulate(sample(3));
+        assert_eq!(state.traffic, 13_000);
+        assert_eq!(state.target_latency, original.target_latency);
+        assert_eq!(state.active_regions, original.active_regions);
+        assert_eq!(state.latency, original.latency);
+        assert_eq!(state.instances, original.instances);
+        assert_eq!(state.cpu_usage, original.cpu_usage);
+        assert_eq!(state.ram_usage, original.ram_usage);
+        assert_eq!(state.volume_usage, original.volume_usage);
+        assert_eq!(state.volume_capacity, original.volume_capacity);
+    }
+
+    #[test]
+    fn merge_latest_overwrites_gauges_and_takes_max_of_traffic() {
+        let mut state = sample(10);
+        state.merge_latest(sample(3));
+        assert_eq!(state.target_latency, 3.0);
+        assert_eq!(state.active_regions, 4.0);
+        assert_eq!(state.latency, 5.0);
+        assert_eq!(state.instances, 6.0);
+        assert_eq!(state.cpu_usage, 0.03);
+        assert_eq!(state.ram_usage, 0.06);
+        assert_eq!(state.traffic, 10_000);
+    }
+
+    #[test]
+    fn merge_latest_replaces_volume_maps_wholesale() {
+        let mut state = sample(10);
+        state.volume_usage.insert("logs".to_string(), 999.0);
+        state.merge_latest(sample(3));
+        assert_eq!(state.volume_usage.get("data"), Some(&3.0));
+        assert!(!state.volume_usage.contains_key("logs"));
+        assert_eq!(state.volume_capacity.get("data"), Some(&30.0));
+    }
+
+    #[test]
+    fn extract_volume_chart_for_date_maps_each_volume_and_errors_on_missing_date() {
+        let chart = volume_chart(&[
+            ("data", &[("2026-05-24", 12.5)]),
+            ("logs", &[("2026-05-24", 4.0)]),
+        ]);
+        let result = extract_volume_chart_for_date(&chart, date(2026, 5, 24)).unwrap();
+        assert_eq!(result.get("data"), Some(&12.5));
+        assert_eq!(result.get("logs"), Some(&4.0));
+
+        let missing = volume_chart(&[
+            ("data", &[("2026-05-24", 12.5)]),
+            ("logs", &[("2026-05-25", 4.0)]),
+        ]);
+        assert!(extract_volume_chart_for_date(&missing, date(2026, 5, 24)).is_err());
+    }
+}

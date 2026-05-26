@@ -52,3 +52,74 @@ pub fn write_state_to_file(state_dir: &Path, file_name: &str, json: &str) -> Res
 
     Ok(())
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    use std::path::PathBuf;
+
+    #[derive(Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
+    struct Sample {
+        n: u64,
+        name: String,
+    }
+
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir()
+            .join("bunnynet_prometheus_tests")
+            .join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn write_then_read_roundtrips() {
+        let dir = test_dir("write_then_read_roundtrips");
+        let original = Sample {
+            n: 42,
+            name: "hello".to_string(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        write_state_to_file(&dir, "sample.json", &json).unwrap();
+        let read: Sample = read_state_from_file(&dir, "sample.json").unwrap();
+        assert_eq!(read, original);
+    }
+
+    #[test]
+    fn read_missing_file_returns_default() {
+        let dir = test_dir("read_missing_file_returns_default");
+        let read: Sample = read_state_from_file(&dir, "missing.json").unwrap();
+        assert_eq!(read, Sample::default());
+    }
+
+    #[test]
+    fn write_leaves_no_tmp_file_on_success() {
+        let dir = test_dir("write_leaves_no_tmp_file_on_success");
+        write_state_to_file(&dir, "sample.json", r#"{"n":1,"name":"x"}"#).unwrap();
+        assert!(dir.join("sample.json").exists());
+        assert!(!dir.join("sample.json.tmp").exists());
+    }
+
+    #[test]
+    fn write_replaces_existing_file() {
+        let dir = test_dir("write_replaces_existing_file");
+        write_state_to_file(&dir, "sample.json", r#"{"n":1,"name":"a"}"#).unwrap();
+        write_state_to_file(&dir, "sample.json", r#"{"n":2,"name":"b"}"#).unwrap();
+        let read: Sample = read_state_from_file(&dir, "sample.json").unwrap();
+        assert_eq!(
+            read,
+            Sample {
+                n: 2,
+                name: "b".to_string()
+            }
+        );
+    }
+}

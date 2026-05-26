@@ -86,3 +86,42 @@ impl DayData for StorageDayData {
         self.file_count = snapshot.file_count;
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulate_is_noop() {
+        let mut state = StorageDayData {
+            storage_used: 100,
+            file_count: 5,
+        };
+        state.accumulate(StorageDayData {
+            storage_used: 999,
+            file_count: 999,
+        });
+        assert_eq!(state.storage_used, 100);
+        assert_eq!(state.file_count, 5);
+    }
+
+    #[test]
+    fn merge_latest_overwrites_with_snapshot_even_when_smaller() {
+        let mut state = StorageDayData {
+            storage_used: 1000,
+            file_count: 100,
+        };
+        state.merge_latest(StorageDayData {
+            storage_used: 1,
+            file_count: 1,
+        });
+        assert_eq!(state.storage_used, 1);
+        assert_eq!(state.file_count, 1);
+    }
+}

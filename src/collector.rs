@@ -91,3 +91,26 @@ where
 {
     Ok(Box::new(read_state_from_file::<T>(state_dir, file)?))
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_name_matches_state_file_name_for_every_variant() {
+        for variant in Collector::value_variants() {
+            let cli_name = variant.to_possible_value().unwrap();
+            assert_eq!(cli_name.get_name(), variant.name());
+            assert_eq!(
+                variant.state_file_name(),
+                format!("{}.json", variant.name())
+            );
+        }
+    }
+}

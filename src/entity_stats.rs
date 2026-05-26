@@ -333,3 +333,439 @@ pub fn emit_labeled_counter(
         metrics::counter!(metric, &labels).absolute(total);
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::float_cmp,
+    clippy::await_holding_lock
+)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    #[test]
+    fn f64_to_u64_truncates_positives_and_clamps_negatives_and_nan() {
+        assert_eq!(f64_to_u64(42.9), 42);
+        assert_eq!(f64_to_u64(0.0), 0);
+        assert_eq!(f64_to_u64(-1.0), 0);
+        assert_eq!(f64_to_u64(f64::NAN), 0);
+        assert_eq!(f64_to_u64(f64::INFINITY), u64::MAX);
+    }
+
+    #[test]
+    fn find_chart_value_for_date_accepts_bare_and_timestamped_keys() {
+        let mut chart = HashMap::new();
+        chart.insert("2026-05-24".to_string(), 7u64);
+        assert_eq!(
+            find_chart_value_for_date(&chart, date(2026, 5, 24)).unwrap(),
+            7
+        );
+
+        let mut ts = HashMap::new();
+        ts.insert("2026-05-24T00:00:00".to_string(), 9u64);
+        assert_eq!(
+            find_chart_value_for_date(&ts, date(2026, 5, 24)).unwrap(),
+            9
+        );
+    }
+
+    #[test]
+    fn find_chart_value_for_date_errors_unless_exactly_one_matching_entry() {
+        let empty: HashMap<String, u64> = HashMap::new();
+        assert!(find_chart_value_for_date(&empty, date(2026, 5, 24)).is_err());
+
+        let mut wrong = HashMap::new();
+        wrong.insert("2026-05-25".to_string(), 1u64);
+        assert!(find_chart_value_for_date(&wrong, date(2026, 5, 24)).is_err());
+
+        let mut multi = HashMap::new();
+        multi.insert("2026-05-24".to_string(), 1u64);
+        multi.insert("2026-05-25".to_string(), 2u64);
+        assert!(find_chart_value_for_date(&multi, date(2026, 5, 24)).is_err());
+    }
+
+    #[test]
+    fn find_chart_value_for_date_lenient_matches_prefix_only_at_start() {
+        let mut chart = HashMap::new();
+        chart.insert("2026-05-24T00:00:00".to_string(), 11u64);
+        chart.insert("2026-05-25T00:00:00".to_string(), 22u64);
+        assert_eq!(
+            find_chart_value_for_date_lenient(&chart, date(2026, 5, 24)).unwrap(),
+            11
+        );
+
+        let mut wrong_position = HashMap::new();
+        wrong_position.insert("xyz-2026-05-24".to_string(), 1u64);
+        assert!(find_chart_value_for_date_lenient(&wrong_position, date(2026, 5, 24)).is_err());
+    }
+
+    #[test]
+    fn sum_chart_f64_as_u64_clamps_negatives_per_entry() {
+        let mut chart = HashMap::new();
+        chart.insert("a".to_string(), 1.5);
+        chart.insert("b".to_string(), 2.7);
+        chart.insert("c".to_string(), -10.0);
+        assert_eq!(sum_chart_f64_as_u64(&chart), 3);
+    }
+
+    #[test]
+    fn sum_chart_values_in_range_is_inclusive_and_accepts_timestamped_keys() {
+        let mut chart = HashMap::new();
+        chart.insert("2026-05-23".to_string(), 1u64);
+        chart.insert("2026-05-24T00:00:00".to_string(), 10u64);
+        chart.insert("2026-05-25T12:00:00".to_string(), 100u64);
+        chart.insert("2026-05-26".to_string(), 1000u64);
+        let total = sum_chart_values_in_range(&chart, date(2026, 5, 24), date(2026, 5, 25));
+        assert_eq!(total, 110);
+    }
+
+    #[test]
+    fn sum_chart_values_in_range_skips_keys_shorter_than_date_prefix() {
+        let mut chart = HashMap::new();
+        chart.insert("foo".to_string(), 5u64);
+        chart.insert("2026-05-24".to_string(), 10u64);
+        let total = sum_chart_values_in_range(&chart, date(2026, 5, 24), date(2026, 5, 24));
+        assert_eq!(total, 10);
+    }
+
+    static TRY_POLL_LOCK: Mutex<()> = Mutex::new(());
+    static FAKE_LIST: Mutex<Option<Arc<Vec<Arc<FakeEntity>>>>> = Mutex::new(None);
+
+    #[derive(Default, Clone, Serialize, Deserialize)]
+    struct FakeDayData {
+        value: u64,
+    }
+
+    impl DayData for FakeDayData {
+        fn accumulate(&mut self, day: Self) {
+            self.value += day.value;
+        }
+        fn merge_latest(&mut self, snapshot: Self) {
+            self.value = snapshot.value;
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum Call {
+        FetchDay(NaiveDate),
+        FetchRange(NaiveDate, NaiveDate),
+    }
+
+    #[derive(Default)]
+    struct FakeEntity {
+        id: String,
+        label: String,
+        day_values: HashMap<NaiveDate, u64>,
+        range_value: Option<u64>,
+        error_on_day: Option<NaiveDate>,
+        calls: Mutex<Vec<Call>>,
+    }
+
+    impl FakeEntity {
+        fn new(id: &str, label: &str) -> Self {
+            Self {
+                id: id.to_string(),
+                label: label.to_string(),
+                ..Default::default()
+            }
+        }
+        fn calls(&self) -> Vec<Call> {
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    struct RecordingType;
+
+    impl EntityType for RecordingType {
+        type Entity = Arc<FakeEntity>;
+        type DayData = FakeDayData;
+        const LOG_LABEL: &'static str = "fake-recording";
+
+        fn entity_id(e: &Self::Entity) -> String {
+            e.id.clone()
+        }
+        fn entity_label(e: &Self::Entity) -> String {
+            e.label.clone()
+        }
+
+        fn list(_: &ApiClient) -> FetchFuture<'_, Arc<Vec<Self::Entity>>> {
+            Box::pin(async move {
+                let guard = FAKE_LIST.lock().unwrap();
+                Ok(guard.as_ref().expect("FAKE_LIST not set").clone())
+            })
+        }
+
+        fn fetch_day<'a>(
+            _: &'a ApiClient,
+            e: &'a Self::Entity,
+            date: NaiveDate,
+        ) -> FetchFuture<'a, Self::DayData> {
+            Box::pin(async move {
+                e.calls.lock().unwrap().push(Call::FetchDay(date));
+                if e.error_on_day == Some(date) {
+                    bail!("fake error for {date}");
+                }
+                Ok(FakeDayData {
+                    value: e.day_values.get(&date).copied().unwrap_or(0),
+                })
+            })
+        }
+
+        fn fetch_range<'a>(
+            _: &'a ApiClient,
+            e: &'a Self::Entity,
+            from: NaiveDate,
+            to: NaiveDate,
+        ) -> FetchFuture<'a, Self::DayData> {
+            Box::pin(async move {
+                e.calls.lock().unwrap().push(Call::FetchRange(from, to));
+                Ok(FakeDayData {
+                    value: e.range_value.unwrap_or(0),
+                })
+            })
+        }
+
+        fn emit_metrics(_: &str, _: &str, _: &Self::DayData, _: &Self::DayData) {}
+    }
+
+    struct DefaultRangeType;
+
+    impl EntityType for DefaultRangeType {
+        type Entity = Arc<FakeEntity>;
+        type DayData = FakeDayData;
+        const LOG_LABEL: &'static str = "fake-default-range";
+
+        fn entity_id(e: &Self::Entity) -> String {
+            e.id.clone()
+        }
+        fn entity_label(e: &Self::Entity) -> String {
+            e.label.clone()
+        }
+
+        fn list(_: &ApiClient) -> FetchFuture<'_, Arc<Vec<Self::Entity>>> {
+            Box::pin(async move { unreachable!("list not used in these tests") })
+        }
+
+        fn fetch_day<'a>(
+            _: &'a ApiClient,
+            e: &'a Self::Entity,
+            date: NaiveDate,
+        ) -> FetchFuture<'a, Self::DayData> {
+            Box::pin(async move {
+                e.calls.lock().unwrap().push(Call::FetchDay(date));
+                Ok(FakeDayData {
+                    value: e.day_values.get(&date).copied().unwrap_or(0),
+                })
+            })
+        }
+
+        fn emit_metrics(_: &str, _: &str, _: &Self::DayData, _: &Self::DayData) {}
+    }
+
+    fn fake_api_client() -> Arc<ApiClient> {
+        Arc::new(ApiClient::new("test", Duration::from_secs(10), Duration::from_mins(1)).unwrap())
+    }
+
+    fn set_fake_list(entities: Vec<Arc<FakeEntity>>) {
+        *FAKE_LIST.lock().unwrap() = Some(Arc::new(entities));
+    }
+
+    #[tokio::test]
+    async fn update_entry_no_prior_state_fetches_only_today() {
+        let today = date(2026, 5, 26);
+        let yesterday = date(2026, 5, 25);
+        let mut entity_data = FakeEntity::new("e1", "Entity 1");
+        entity_data.day_values.insert(today, 10);
+        let entity = Arc::new(entity_data);
+        let mut entry = EntityEntry::<RecordingType>::default();
+        let client = fake_api_client();
+
+        update_entry::<RecordingType>(&client, &entity, "e1", &mut entry, today, yesterday)
+            .await
+            .unwrap();
+
+        assert_eq!(entity.calls(), vec![Call::FetchDay(today)]);
+        assert_eq!(entry.last_complete_day, Some(yesterday));
+        assert_eq!(entry.last_complete_day_state.value, 0);
+        assert_eq!(entry.current_day_state.value, 10);
+    }
+
+    #[tokio::test]
+    async fn update_entry_caught_up_no_backfill() {
+        let today = date(2026, 5, 26);
+        let yesterday = date(2026, 5, 25);
+        let mut entity_data = FakeEntity::new("e1", "Entity 1");
+        entity_data.day_values.insert(today, 7);
+        let entity = Arc::new(entity_data);
+
+        let mut entry = EntityEntry::<RecordingType> {
+            last_complete_day: Some(yesterday),
+            last_complete_day_state: FakeDayData { value: 100 },
+            current_day_state: FakeDayData { value: 50 },
+            ..Default::default()
+        };
+
+        let client = fake_api_client();
+        update_entry::<RecordingType>(&client, &entity, "e1", &mut entry, today, yesterday)
+            .await
+            .unwrap();
+
+        assert_eq!(entity.calls(), vec![Call::FetchDay(today)]);
+        assert_eq!(entry.last_complete_day, Some(yesterday));
+        assert_eq!(entry.last_complete_day_state.value, 100);
+        assert_eq!(entry.current_day_state.value, 7);
+    }
+
+    #[tokio::test]
+    async fn update_entry_backfills_missing_days_then_today() {
+        let today = date(2026, 5, 26);
+        let yesterday = date(2026, 5, 25);
+        let last = date(2026, 5, 20);
+        let mut entity_data = FakeEntity::new("e1", "Entity 1");
+        entity_data.day_values.insert(today, 3);
+        entity_data.range_value = Some(42);
+        let entity = Arc::new(entity_data);
+
+        let mut entry = EntityEntry::<RecordingType> {
+            last_complete_day: Some(last),
+            last_complete_day_state: FakeDayData { value: 100 },
+            current_day_state: FakeDayData { value: 99 },
+            ..Default::default()
+        };
+
+        let client = fake_api_client();
+        update_entry::<RecordingType>(&client, &entity, "e1", &mut entry, today, yesterday)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            entity.calls(),
+            vec![
+                Call::FetchRange(date(2026, 5, 21), yesterday),
+                Call::FetchDay(today),
+            ]
+        );
+        assert_eq!(entry.last_complete_day, Some(yesterday));
+        assert_eq!(entry.last_complete_day_state.value, 142);
+        assert_eq!(entry.current_day_state.value, 3);
+    }
+
+    #[tokio::test]
+    async fn fetch_range_default_iterates_day_by_day_and_accumulates() {
+        let today = date(2026, 5, 26);
+        let yesterday = date(2026, 5, 25);
+        let last = date(2026, 5, 22);
+        let mut entity_data = FakeEntity::new("e1", "Entity 1");
+        entity_data.day_values.insert(date(2026, 5, 23), 1);
+        entity_data.day_values.insert(date(2026, 5, 24), 2);
+        entity_data.day_values.insert(date(2026, 5, 25), 4);
+        entity_data.day_values.insert(today, 8);
+        let entity = Arc::new(entity_data);
+
+        let mut entry = EntityEntry::<DefaultRangeType> {
+            last_complete_day: Some(last),
+            last_complete_day_state: FakeDayData { value: 100 },
+            ..Default::default()
+        };
+
+        let client = fake_api_client();
+        update_entry::<DefaultRangeType>(&client, &entity, "e1", &mut entry, today, yesterday)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            entity.calls(),
+            vec![
+                Call::FetchDay(date(2026, 5, 23)),
+                Call::FetchDay(date(2026, 5, 24)),
+                Call::FetchDay(date(2026, 5, 25)),
+                Call::FetchDay(today),
+            ]
+        );
+        assert_eq!(entry.last_complete_day, Some(yesterday));
+        assert_eq!(entry.last_complete_day_state.value, 107);
+        assert_eq!(entry.current_day_state.value, 8);
+    }
+
+    #[tokio::test]
+    async fn try_poll_adds_unknown_entities() {
+        let _guard = TRY_POLL_LOCK.lock().unwrap();
+        let entity_a = Arc::new(FakeEntity::new("a", "Entity A"));
+        let entity_b = Arc::new(FakeEntity::new("b", "Entity B"));
+        set_fake_list(vec![Arc::clone(&entity_a), Arc::clone(&entity_b)]);
+
+        let mut state = EntityStatsState::<RecordingType>::default();
+        let client = fake_api_client();
+        state.try_poll(client, 2).await.unwrap();
+
+        assert!(state.entities.contains_key("a"));
+        assert!(state.entities.contains_key("b"));
+        assert_eq!(state.entities["a"].label, "Entity A");
+        assert_eq!(state.entities["b"].label, "Entity B");
+        assert_eq!(entity_a.calls().len(), 1);
+        assert_eq!(entity_b.calls().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn try_poll_prunes_missing_entities() {
+        let _guard = TRY_POLL_LOCK.lock().unwrap();
+        let entity_a = Arc::new(FakeEntity::new("a", "Entity A"));
+        set_fake_list(vec![Arc::clone(&entity_a)]);
+
+        let mut state = EntityStatsState::<RecordingType>::default();
+        state
+            .entities
+            .insert("a".to_string(), EntityEntry::default());
+        state
+            .entities
+            .insert("stale".to_string(), EntityEntry::default());
+
+        let client = fake_api_client();
+        state.try_poll(client, 1).await.unwrap();
+
+        assert!(state.entities.contains_key("a"));
+        assert!(!state.entities.contains_key("stale"));
+    }
+
+    #[tokio::test]
+    async fn poll_rolls_back_state_on_error() {
+        let _guard = TRY_POLL_LOCK.lock().unwrap();
+        let today = chrono::Utc::now().date_naive();
+        let mut a_data = FakeEntity::new("a", "Entity A");
+        a_data.error_on_day = Some(today);
+        let entity_a = Arc::new(a_data);
+        let entity_b = Arc::new(FakeEntity::new("b", "Entity B"));
+        set_fake_list(vec![Arc::clone(&entity_a), Arc::clone(&entity_b)]);
+
+        let mut state = EntityStatsState::<RecordingType>::default();
+        state.entities.insert(
+            "preexisting".to_string(),
+            EntityEntry {
+                label: "Before".to_string(),
+                last_complete_day_state: FakeDayData { value: 7 },
+                ..Default::default()
+            },
+        );
+        state.last_entity_count = Some(99);
+
+        let client = fake_api_client();
+        let result = state.poll(client, 1).await;
+        assert!(result.is_err());
+        assert_eq!(state.entities.len(), 1);
+        assert_eq!(state.entities["preexisting"].label, "Before");
+        assert_eq!(
+            state.entities["preexisting"].last_complete_day_state.value,
+            7
+        );
+        assert_eq!(state.last_entity_count, Some(99));
+    }
+}

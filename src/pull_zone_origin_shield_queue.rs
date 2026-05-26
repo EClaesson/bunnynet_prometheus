@@ -101,3 +101,42 @@ impl DayData for PullZoneOriginShieldQueueDayData {
         self.queued_requests = snapshot.queued_requests;
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulate_is_noop() {
+        let mut state = PullZoneOriginShieldQueueDayData {
+            concurrent_requests: 50,
+            queued_requests: 10,
+        };
+        state.accumulate(PullZoneOriginShieldQueueDayData {
+            concurrent_requests: 999,
+            queued_requests: 999,
+        });
+        assert_eq!(state.concurrent_requests, 50);
+        assert_eq!(state.queued_requests, 10);
+    }
+
+    #[test]
+    fn merge_latest_overwrites_with_snapshot_even_when_smaller() {
+        let mut state = PullZoneOriginShieldQueueDayData {
+            concurrent_requests: 500,
+            queued_requests: 200,
+        };
+        state.merge_latest(PullZoneOriginShieldQueueDayData {
+            concurrent_requests: 5,
+            queued_requests: 2,
+        });
+        assert_eq!(state.concurrent_requests, 5);
+        assert_eq!(state.queued_requests, 2);
+    }
+}

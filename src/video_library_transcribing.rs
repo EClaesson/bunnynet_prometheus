@@ -103,3 +103,36 @@ impl DayData for VideoLibraryTranscribingDayData {
             .max(snapshot.transcription_seconds);
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulate_sums() {
+        let mut state = VideoLibraryTranscribingDayData {
+            transcription_seconds: 10,
+        };
+        state.accumulate(VideoLibraryTranscribingDayData {
+            transcription_seconds: 3,
+        });
+        assert_eq!(state.transcription_seconds, 13);
+    }
+
+    #[test]
+    fn merge_latest_takes_max() {
+        let mut state = VideoLibraryTranscribingDayData {
+            transcription_seconds: 50,
+        };
+        state.merge_latest(VideoLibraryTranscribingDayData {
+            transcription_seconds: 30,
+        });
+        assert_eq!(state.transcription_seconds, 50);
+    }
+}

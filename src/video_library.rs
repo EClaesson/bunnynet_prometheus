@@ -140,3 +140,73 @@ impl DayData for VideoLibraryDayData {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    fn data(
+        views: u64,
+        watch_time: u64,
+        views_per_country: &[(&str, u64)],
+        watch_time_per_country: &[(&str, u64)],
+    ) -> VideoLibraryDayData {
+        let mut country_views = CountryViewCounts::new();
+        for (k, v) in views_per_country {
+            country_views.insert((*k).to_string(), *v);
+        }
+        let mut country_watch_time = CountryWatchTime::new();
+        for (k, v) in watch_time_per_country {
+            country_watch_time.insert((*k).to_string(), *v);
+        }
+        VideoLibraryDayData {
+            views,
+            watch_time,
+            country_views,
+            country_watch_time,
+        }
+    }
+
+    #[test]
+    fn accumulate_sums_counters_and_maps() {
+        let mut state = data(10, 100, &[("US", 5), ("DE", 2)], &[("US", 50)]);
+        state.accumulate(data(3, 30, &[("US", 1), ("FR", 7)], &[("DE", 8)]));
+        assert_eq!(state.views, 13);
+        assert_eq!(state.watch_time, 130);
+        assert_eq!(state.country_views.get("US"), Some(&6));
+        assert_eq!(state.country_views.get("DE"), Some(&2));
+        assert_eq!(state.country_views.get("FR"), Some(&7));
+        assert_eq!(state.country_watch_time.get("US"), Some(&50));
+        assert_eq!(state.country_watch_time.get("DE"), Some(&8));
+    }
+
+    #[test]
+    fn merge_latest_takes_max_of_counters() {
+        let mut state = data(50, 500, &[], &[]);
+        state.merge_latest(data(30, 1000, &[], &[]));
+        assert_eq!(state.views, 50);
+        assert_eq!(state.watch_time, 1000);
+    }
+
+    #[test]
+    fn merge_latest_maps_take_max_per_key_and_keep_existing() {
+        let mut state = data(0, 0, &[("US", 10), ("DE", 3)], &[("US", 100)]);
+        state.merge_latest(data(
+            0,
+            0,
+            &[("US", 5), ("FR", 7)],
+            &[("US", 80), ("DE", 9)],
+        ));
+        assert_eq!(state.country_views.get("US"), Some(&10));
+        assert_eq!(state.country_views.get("DE"), Some(&3));
+        assert_eq!(state.country_views.get("FR"), Some(&7));
+        assert_eq!(state.country_watch_time.get("US"), Some(&100));
+        assert_eq!(state.country_watch_time.get("DE"), Some(&9));
+    }
+}

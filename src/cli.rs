@@ -85,3 +85,34 @@ pub struct CliArgs {
     #[arg(short, long, value_enum, num_args = 1.., required = true, value_delimiter = ',', help="Comma-separated list of categories of statistics to poll")]
     pub collectors: Vec<Collector>,
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> clap::error::Result<CliArgs> {
+        let mut full: Vec<&str> = vec!["bunnynet_prometheus"];
+        full.extend_from_slice(args);
+        CliArgs::try_parse_from(full)
+    }
+
+    #[test]
+    fn declared_defaults_are_applied() {
+        let args = parse(&["-c", "dns_zone"]).unwrap();
+        assert_eq!(args.bind_port, 9000);
+        assert_eq!(args.api_request_timeout, 10);
+        assert_eq!(args.api_concurrency, 5);
+        assert_eq!(args.poll_interval, 300);
+        assert_eq!(args.bind_addr.to_string(), "0.0.0.0");
+        assert!(
+            args.state_dir
+                .ends_with(".local/share/bunnynet_prometheus/state")
+        );
+    }
+}

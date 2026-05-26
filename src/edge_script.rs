@@ -113,3 +113,49 @@ impl DayData for EdgeScriptDayData {
         self.average_cpu_time = snapshot.average_cpu_time;
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::float_cmp
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulate_sums_counters_and_leaves_gauge() {
+        let mut state = EdgeScriptDayData {
+            requests_served: 10,
+            total_cpu_time: 100,
+            average_cpu_time: 7.5,
+        };
+        state.accumulate(EdgeScriptDayData {
+            requests_served: 3,
+            total_cpu_time: 30,
+            average_cpu_time: 99.0,
+        });
+        assert_eq!(state.requests_served, 13);
+        assert_eq!(state.total_cpu_time, 130);
+        assert_eq!(state.average_cpu_time, 7.5);
+    }
+
+    #[test]
+    fn merge_latest_max_counters_and_overwrite_gauge() {
+        let mut state = EdgeScriptDayData {
+            requests_served: 50,
+            total_cpu_time: 500,
+            average_cpu_time: 100.0,
+        };
+        state.merge_latest(EdgeScriptDayData {
+            requests_served: 30,
+            total_cpu_time: 1000,
+            average_cpu_time: 1.0,
+        });
+        assert_eq!(state.requests_served, 50);
+        assert_eq!(state.total_cpu_time, 1000);
+        assert_eq!(state.average_cpu_time, 1.0);
+    }
+}

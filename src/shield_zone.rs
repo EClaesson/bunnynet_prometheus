@@ -207,3 +207,136 @@ impl DayData for ShieldZoneDayData {
         self.total_billable_requests_this_month = snapshot.total_billable_requests_this_month;
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn category(actions: &[(&str, u64)]) -> HashMap<String, u64> {
+        actions
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), *v))
+            .collect()
+    }
+
+    fn data(
+        categories: &[(&str, &[(&str, u64)])],
+        clean_limit: u64,
+        billable: u64,
+    ) -> ShieldZoneDayData {
+        let mut map = HashMap::new();
+        for (cat, actions) in categories {
+            map.insert((*cat).to_string(), category(actions));
+        }
+        ShieldZoneDayData {
+            categories: map,
+            total_clean_requests_limit: clean_limit,
+            total_billable_requests_this_month: billable,
+        }
+    }
+
+    fn shield_category(actions: &[(&str, &[(&str, u64)])]) -> ShieldCategoryMetrics {
+        let mut metrics = HashMap::new();
+        for (action, points) in actions {
+            let chart: HashMap<String, u64> =
+                points.iter().map(|(k, v)| ((*k).to_string(), *v)).collect();
+            metrics.insert((*action).to_string(), chart);
+        }
+        ShieldCategoryMetrics { metrics }
+    }
+
+    #[test]
+    fn entity_label_is_empty_when_pull_zone_id_is_none() {
+        let with_pz = ShieldZone {
+            shield_zone_id: 1,
+            pull_zone_id: Some(42),
+        };
+        assert_eq!(ShieldZoneKind::entity_label(&with_pz), "42");
+
+        let without_pz = ShieldZone {
+            shield_zone_id: 2,
+            pull_zone_id: None,
+        };
+        assert_eq!(ShieldZoneKind::entity_label(&without_pz), "");
+    }
+
+    #[test]
+    fn accumulate_sums_overlapping_actions_and_inserts_new_categories() {
+        let mut state = data(&[("waf", &[("block", 5), ("allow", 10)])], 0, 0);
+        state.accumulate(data(
+            &[("waf", &[("block", 3)]), ("ddos", &[("drop", 7)])],
+            0,
+            0,
+        ));
+        let waf = state.categories.get("waf").unwrap();
+        assert_eq!(waf.get("block"), Some(&8));
+        assert_eq!(waf.get("allow"), Some(&10));
+        assert_eq!(state.categories.get("ddos").unwrap().get("drop"), Some(&7));
+    }
+
+    #[test]
+    fn merge_latest_max_per_action_keeps_both_sides_overwrites_total_gauges() {
+        let mut state = data(&[("waf", &[("block", 10), ("allow", 3)])], 1000, 500);
+        state.merge_latest(data(
+            &[
+                ("waf", &[("block", 5), ("allow", 8)]),
+                ("ddos", &[("drop", 7)]),
+            ],
+            1,
+            1,
+        ));
+        let waf = state.categories.get("waf").unwrap();
+        assert_eq!(waf.get("block"), Some(&10));
+        assert_eq!(waf.get("allow"), Some(&8));
+        assert_eq!(state.categories.get("ddos").unwrap().get("drop"), Some(&7));
+        assert_eq!(state.total_clean_requests_limit, 1);
+        assert_eq!(state.total_billable_requests_this_month, 1);
+    }
+
+    #[test]
+    fn extract_category_for_date_maps_each_action_and_errors_when_any_action_missing_date() {
+        let cat = shield_category(&[
+            ("block", &[("2026-05-24T00:00:00", 7)]),
+            ("allow", &[("2026-05-24T00:00:00", 12)]),
+        ]);
+        let result = extract_category_for_date(&cat, date(2026, 5, 24)).unwrap();
+        assert_eq!(result.get("block"), Some(&7));
+        assert_eq!(result.get("allow"), Some(&12));
+
+        let missing = shield_category(&[
+            ("block", &[("2026-05-24T00:00:00", 7)]),
+            ("allow", &[("2026-05-25T00:00:00", 12)]),
+        ]);
+        assert!(extract_category_for_date(&missing, date(2026, 5, 24)).is_err());
+    }
+
+    #[test]
+    fn sum_category_in_range_sums_each_action_chart() {
+        let cat = shield_category(&[
+            (
+                "block",
+                &[
+                    ("2026-05-24T00:00:00", 5),
+                    ("2026-05-25T00:00:00", 10),
+                    ("2026-05-26T00:00:00", 100),
+                ],
+            ),
+            ("allow", &[("2026-05-25T00:00:00", 3)]),
+            ("scan", &[("2026-05-30T00:00:00", 99)]),
+        ]);
+        let result = sum_category_in_range(&cat, date(2026, 5, 24), date(2026, 5, 25));
+        assert_eq!(result.get("block"), Some(&15));
+        assert_eq!(result.get("allow"), Some(&3));
+        assert_eq!(result.get("scan"), Some(&0));
+    }
+}

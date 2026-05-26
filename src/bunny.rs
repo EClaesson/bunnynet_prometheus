@@ -19,6 +19,10 @@ const MAX_RETRY_DURATION: Duration = Duration::from_mins(5);
 const ITEMS_PER_PAGE: u32 = 500;
 const DATE_FORMAT: &str = "%Y-%m-%d";
 
+fn retry_budget(poll_interval: Duration) -> Duration {
+    (poll_interval.saturating_mul(4) / 5).clamp(MIN_RETRY_DURATION, MAX_RETRY_DURATION)
+}
+
 pub struct ApiClient {
     client: reqwest_middleware::ClientWithMiddleware,
     pull_zones_cache: ListCache<PullZone>,
@@ -69,9 +73,7 @@ impl ApiClient {
             .timeout(api_request_timeout)
             .build()?;
 
-        let retry_duration_budget = (poll_interval * 4 / 5)
-            .min(MAX_RETRY_DURATION)
-            .max(MIN_RETRY_DURATION);
+        let retry_duration_budget = retry_budget(poll_interval);
         let retry_policy = reqwest_retry::policies::ExponentialBackoff::builder()
             .jitter(reqwest_retry::Jitter::Bounded)
             .retry_bounds(MIN_RETRY_INTERVAL, MAX_RETRY_INTERVAL)
@@ -801,4 +803,75 @@ pub struct PullZoneStats {
     pub errors_4xx_chart: ErrorChart,
     #[serde(rename = "Error5xxChart")]
     pub errors_5xx_chart: ErrorChart,
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::float_cmp
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pull_zone_stats_uses_singular_error_chart_rename() {
+        let json = r#"{
+            "OriginResponseTimeChart": {"2026-05-24": 1.5},
+            "CacheHitRateChart": {"2026-05-24": 0.9},
+            "BandwidthUsedChart": {},
+            "BandwidthCachedChart": {},
+            "RequestsServedChart": {},
+            "PullRequestsPulledChart": {},
+            "OriginShieldBandwidthUsedChart": {},
+            "OriginShieldInternalBandwidthUsedChart": {},
+            "OriginTrafficChart": {},
+            "GeoTrafficDistribution": {},
+            "Error3xxChart": {"2026-05-24": 3},
+            "Error4xxChart": {"2026-05-24": 4},
+            "Error5xxChart": {"2026-05-24": 5}
+        }"#;
+        let stats: PullZoneStats = serde_json::from_str(json).unwrap();
+        assert_eq!(stats.errors_3xx_chart.get("2026-05-24"), Some(&3));
+        assert_eq!(stats.errors_4xx_chart.get("2026-05-24"), Some(&4));
+        assert_eq!(stats.errors_5xx_chart.get("2026-05-24"), Some(&5));
+
+        let plural = json.replace("\"Error", "\"Errors");
+        assert!(
+            serde_json::from_str::<PullZoneStats>(&plural).is_err(),
+            "renames pin to API's singular 'Error*Chart' keys, not the default plural form"
+        );
+    }
+
+    #[test]
+    fn retry_budget_is_eighty_percent_clamped_to_min_max() {
+        assert_eq!(
+            retry_budget(Duration::from_secs(10)),
+            Duration::from_secs(8)
+        );
+        assert_eq!(retry_budget(Duration::ZERO), MIN_RETRY_DURATION);
+        assert_eq!(retry_budget(Duration::from_secs(1)), MIN_RETRY_DURATION);
+        assert_eq!(retry_budget(Duration::from_mins(7)), MAX_RETRY_DURATION);
+        assert_eq!(retry_budget(Duration::MAX), MAX_RETRY_DURATION);
+    }
+
+    #[test]
+    fn list_cache_store_read_clear() {
+        let cache: ListCache<u64> = ListCache::new();
+        assert!(cache.read().is_none());
+
+        let value = Arc::new(vec![1u64, 2, 3]);
+        cache.store(&value);
+        let read = cache.read().unwrap();
+        assert!(Arc::ptr_eq(&read, &value));
+
+        let replacement = Arc::new(vec![99u64]);
+        cache.store(&replacement);
+        assert!(Arc::ptr_eq(&cache.read().unwrap(), &replacement));
+
+        cache.clear();
+        assert!(cache.read().is_none());
+    }
 }

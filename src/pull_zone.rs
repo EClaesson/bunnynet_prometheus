@@ -224,3 +224,86 @@ impl DayData for PullZoneDayData {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::float_cmp,
+    clippy::too_many_arguments,
+    clippy::cast_precision_loss
+)]
+mod tests {
+    use super::*;
+
+    fn sample(seed: u64) -> PullZoneDayData {
+        let mut geo = GeoTrafficDistribution::new();
+        geo.insert("US".to_string(), seed * 100);
+        geo.insert("EU".to_string(), seed * 200);
+        PullZoneDayData {
+            origin_response_time: seed as f64,
+            cache_hit_rate: (seed as f64) / 10.0,
+            bandwidth_used: seed,
+            bandwidth_cached: seed * 2,
+            requests_served: seed * 3,
+            pull_requests_pulled: seed * 4,
+            origin_shield_bandwidth_used: seed * 5,
+            origin_shield_internal_bandwidth_used: seed * 6,
+            origin_traffic: seed * 7,
+            errors_3xx: seed * 8,
+            errors_4xx: seed * 9,
+            errors_5xx: seed * 10,
+            geo_traffic_distribution: geo,
+        }
+    }
+
+    #[test]
+    fn accumulate_sums_all_counters_and_geo_map() {
+        let mut state = sample(10);
+        state.accumulate(sample(3));
+        assert_eq!(state.bandwidth_used, 13);
+        assert_eq!(state.bandwidth_cached, 26);
+        assert_eq!(state.requests_served, 39);
+        assert_eq!(state.pull_requests_pulled, 52);
+        assert_eq!(state.origin_shield_bandwidth_used, 65);
+        assert_eq!(state.origin_shield_internal_bandwidth_used, 78);
+        assert_eq!(state.origin_traffic, 91);
+        assert_eq!(state.errors_3xx, 104);
+        assert_eq!(state.errors_4xx, 117);
+        assert_eq!(state.errors_5xx, 130);
+        assert_eq!(state.geo_traffic_distribution.get("US"), Some(&1300));
+        assert_eq!(state.geo_traffic_distribution.get("EU"), Some(&2600));
+    }
+
+    #[test]
+    fn merge_latest_max_counters_overwrite_gauges_max_geo_map() {
+        let mut state = sample(10);
+        state.merge_latest(sample(3));
+        assert_eq!(state.bandwidth_used, 10);
+        assert_eq!(state.bandwidth_cached, 20);
+        assert_eq!(state.requests_served, 30);
+        assert_eq!(state.errors_5xx, 100);
+        assert_eq!(state.origin_response_time, 3.0);
+        assert_eq!(state.cache_hit_rate, 0.3);
+        assert_eq!(state.geo_traffic_distribution.get("US"), Some(&1000));
+        assert_eq!(state.geo_traffic_distribution.get("EU"), Some(&2000));
+    }
+
+    #[test]
+    fn merge_latest_geo_map_keeps_existing_and_inserts_new_keys() {
+        let mut state = sample(10);
+        let mut snapshot = PullZoneDayData::default();
+        snapshot
+            .geo_traffic_distribution
+            .insert("US".to_string(), 500);
+        snapshot
+            .geo_traffic_distribution
+            .insert("APAC".to_string(), 42);
+        state.merge_latest(snapshot);
+        assert_eq!(state.geo_traffic_distribution.get("US"), Some(&1000));
+        assert_eq!(state.geo_traffic_distribution.get("EU"), Some(&2000));
+        assert_eq!(state.geo_traffic_distribution.get("APAC"), Some(&42));
+    }
+}

@@ -64,7 +64,11 @@ async fn main() -> std::process::ExitCode {
 
 async fn run_server(cli_args: &CliArgs) -> Result<()> {
     let poll_interval = Duration::from_secs(cli_args.poll_interval);
-    let access_key = resolve_access_key(cli_args)?;
+    let access_key = resolve_access_key(
+        cli_args.access_key.as_deref(),
+        cli_args.access_key_file.as_deref(),
+        std::env::var(ENV_ACCESS_KEY).ok(),
+    )?;
     let api_request_timeout = Duration::from_secs(cli_args.api_request_timeout);
 
     let api_client = Arc::new(
@@ -222,14 +226,18 @@ async fn shutdown_signal() {
     }
 }
 
-fn resolve_access_key(cli_args: &CliArgs) -> Result<String> {
-    let raw = if let Some(key) = &cli_args.access_key {
+fn resolve_access_key(
+    cli_key: Option<&str>,
+    cli_key_file: Option<&Path>,
+    env_key: Option<String>,
+) -> Result<String> {
+    let raw = if let Some(key) = cli_key {
         debug!("Read access key from cli parameter");
-        key.clone()
-    } else if let Some(path) = &cli_args.access_key_file {
+        key.to_string()
+    } else if let Some(path) = cli_key_file {
         debug!("Read access key from file");
         std::fs::read_to_string(path).context("Failed to read access key from file")?
-    } else if let Ok(key) = std::env::var(ENV_ACCESS_KEY) {
+    } else if let Some(key) = env_key {
         debug!("Read access key from env");
         key
     } else {
@@ -249,4 +257,83 @@ fn now() -> f64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs_f64()
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir()
+            .join("bunnynet_prometheus_resolve_key_tests")
+            .join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn cli_wins_over_file_wins_over_env() {
+        let dir = test_dir("precedence");
+        let path = dir.join("key");
+        std::fs::write(&path, "from-file").unwrap();
+
+        let cli = resolve_access_key(Some("from-cli"), Some(&path), Some("from-env".to_string()))
+            .unwrap();
+        assert_eq!(cli, "from-cli");
+
+        let file = resolve_access_key(None, Some(&path), Some("from-env".to_string())).unwrap();
+        assert_eq!(file, "from-file");
+
+        let env = resolve_access_key(None, None, Some("from-env".to_string())).unwrap();
+        assert_eq!(env, "from-env");
+    }
+
+    #[test]
+    fn no_source_provided_errors() {
+        assert!(resolve_access_key(None, None, None).is_err());
+    }
+
+    #[test]
+    fn trims_surrounding_whitespace_from_each_source() {
+        let dir = test_dir("trims");
+        let path = dir.join("key");
+        std::fs::write(&path, "\n\t  secret  \r\n").unwrap();
+
+        assert_eq!(
+            resolve_access_key(Some("  abc  "), None, None).unwrap(),
+            "abc"
+        );
+        assert_eq!(
+            resolve_access_key(None, Some(&path), None).unwrap(),
+            "secret"
+        );
+        assert_eq!(
+            resolve_access_key(None, None, Some("\n  env-key  \n".to_string())).unwrap(),
+            "env-key"
+        );
+    }
+
+    #[test]
+    fn whitespace_only_source_errors() {
+        let dir = test_dir("whitespace_only_file");
+        let path = dir.join("key");
+        std::fs::write(&path, "   \n").unwrap();
+        assert!(resolve_access_key(Some("   \n\t  "), None, None).is_err());
+        assert!(resolve_access_key(None, Some(&path), None).is_err());
+    }
+
+    #[test]
+    fn missing_file_errors() {
+        let dir = test_dir("missing_file");
+        let path = dir.join("does-not-exist");
+        assert!(resolve_access_key(None, Some(&path), None).is_err());
+    }
 }

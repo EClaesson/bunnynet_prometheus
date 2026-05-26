@@ -96,3 +96,34 @@ impl DayData for VideoLibraryDrmDayData {
         self.licenses_issued = self.licenses_issued.max(snapshot.licenses_issued);
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulate_sums() {
+        let mut state = VideoLibraryDrmDayData {
+            licenses_issued: 10,
+        };
+        state.accumulate(VideoLibraryDrmDayData { licenses_issued: 3 });
+        assert_eq!(state.licenses_issued, 13);
+    }
+
+    #[test]
+    fn merge_latest_takes_max() {
+        let mut state = VideoLibraryDrmDayData {
+            licenses_issued: 50,
+        };
+        state.merge_latest(VideoLibraryDrmDayData {
+            licenses_issued: 30,
+        });
+        assert_eq!(state.licenses_issued, 50);
+    }
+}

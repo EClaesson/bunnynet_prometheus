@@ -105,3 +105,42 @@ impl DayData for PullZoneSafeHopDayData {
         self.requests_saved = self.requests_saved.max(snapshot.requests_saved);
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulate_sums_counters() {
+        let mut state = PullZoneSafeHopDayData {
+            requests_retried: 10,
+            requests_saved: 20,
+        };
+        state.accumulate(PullZoneSafeHopDayData {
+            requests_retried: 3,
+            requests_saved: 4,
+        });
+        assert_eq!(state.requests_retried, 13);
+        assert_eq!(state.requests_saved, 24);
+    }
+
+    #[test]
+    fn merge_latest_takes_max_per_field() {
+        let mut state = PullZoneSafeHopDayData {
+            requests_retried: 50,
+            requests_saved: 5,
+        };
+        state.merge_latest(PullZoneSafeHopDayData {
+            requests_retried: 30,
+            requests_saved: 100,
+        });
+        assert_eq!(state.requests_retried, 50);
+        assert_eq!(state.requests_saved, 100);
+    }
+}

@@ -149,3 +149,76 @@ impl DayData for PullZoneOptimizerDayData {
         self.average_processing_time = snapshot.average_processing_time;
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::float_cmp
+)]
+mod tests {
+    use super::*;
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    #[test]
+    fn accumulate_sums_counters_and_leaves_gauges() {
+        let mut state = PullZoneOptimizerDayData {
+            requests_optimized: 10,
+            traffic_saved: 100,
+            average_compression: 0.5,
+            average_processing_time: 2.0,
+        };
+        state.accumulate(PullZoneOptimizerDayData {
+            requests_optimized: 3,
+            traffic_saved: 30,
+            average_compression: 99.0,
+            average_processing_time: 99.0,
+        });
+        assert_eq!(state.requests_optimized, 13);
+        assert_eq!(state.traffic_saved, 130);
+        assert_eq!(state.average_compression, 0.5);
+        assert_eq!(state.average_processing_time, 2.0);
+    }
+
+    #[test]
+    fn merge_latest_max_counters_and_overwrite_gauges_even_when_smaller() {
+        let mut state = PullZoneOptimizerDayData {
+            requests_optimized: 50,
+            traffic_saved: 500,
+            average_compression: 9.9,
+            average_processing_time: 9.9,
+        };
+        state.merge_latest(PullZoneOptimizerDayData {
+            requests_optimized: 30,
+            traffic_saved: 1000,
+            average_compression: 0.1,
+            average_processing_time: 0.1,
+        });
+        assert_eq!(state.requests_optimized, 50);
+        assert_eq!(state.traffic_saved, 1000);
+        assert_eq!(state.average_compression, 0.1);
+        assert_eq!(state.average_processing_time, 0.1);
+    }
+
+    #[test]
+    fn chart_value_or_default_returns_default_for_none_else_delegates() {
+        let absent: u64 = chart_value_or_default(None, date(2026, 5, 24)).unwrap();
+        assert_eq!(absent, 0);
+
+        let mut chart = HashMap::new();
+        chart.insert("2026-05-24".to_string(), 42u64);
+        assert_eq!(
+            chart_value_or_default(Some(&chart), date(2026, 5, 24)).unwrap(),
+            42
+        );
+
+        let mut wrong_date = HashMap::new();
+        wrong_date.insert("2026-05-25".to_string(), 42u64);
+        assert!(chart_value_or_default(Some(&wrong_date), date(2026, 5, 24)).is_err());
+    }
+}
