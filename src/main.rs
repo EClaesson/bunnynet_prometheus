@@ -121,7 +121,14 @@ async fn start_poller_loop(
     api_concurrency: usize,
     mut exporter: ExporterFuture,
 ) -> Result<()> {
-    let mut states: Vec<(Collector, Box<dyn State>)> = collectors
+    let mut deduped = collectors.to_vec();
+    deduped.sort_by_key(|collector| collector.name());
+    deduped.dedup_by_key(|collector| collector.name());
+    if deduped.len() != collectors.len() {
+        warn!("Ignoring duplicate collectors");
+    }
+
+    let mut states: Vec<(Collector, Box<dyn State>)> = deduped
         .iter()
         .map(|collector| {
             collector
@@ -130,7 +137,7 @@ async fn start_poller_loop(
         })
         .collect::<Result<_>>()?;
 
-    let enabled: Vec<&str> = collectors
+    let enabled: Vec<&str> = deduped
         .iter()
         .map(|collector| collector.name())
         .collect();

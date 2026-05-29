@@ -37,6 +37,7 @@ pub struct CliArgs {
         short = 'r',
         long,
         default_value = "10",
+        value_parser = clap::value_parser!(u64).range(1..),
         help = "Timeout in seconds for Bunny.net API requests"
     )]
     pub api_request_timeout: u64,
@@ -45,6 +46,7 @@ pub struct CliArgs {
         short = 'n',
         long,
         default_value = "5",
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..),
         help = "Maximum number of concurrent Bunny.net API requests"
     )]
     pub api_concurrency: usize,
@@ -53,6 +55,7 @@ pub struct CliArgs {
         short = 'i',
         long,
         default_value = "300",
+        value_parser = clap::value_parser!(u64).range(1..),
         help = "Update interval in seconds"
     )]
     pub poll_interval: u64,
@@ -114,5 +117,17 @@ mod tests {
             args.state_dir
                 .ends_with(".local/share/bunnynet_prometheus/state")
         );
+    }
+
+    #[test]
+    fn zero_rejected_for_interval_timeout_and_concurrency() {
+        assert!(parse(&["-c", "dns_zone", "-i", "0"]).is_err());
+        assert!(parse(&["-c", "dns_zone", "-r", "0"]).is_err());
+        assert!(parse(&["-c", "dns_zone", "-n", "0"]).is_err());
+
+        let args = parse(&["-c", "dns_zone", "-i", "1", "-r", "1", "-n", "1"]).unwrap();
+        assert_eq!(args.poll_interval, 1);
+        assert_eq!(args.api_request_timeout, 1);
+        assert_eq!(args.api_concurrency, 1);
     }
 }
