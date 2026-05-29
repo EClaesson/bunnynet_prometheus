@@ -21,10 +21,11 @@ jobs:
 
       - uses: https://github.com/Swatinem/rust-cache@v2
 
+      - name: Install zig
+        uses: https://github.com/mlugg/setup-zig@v2
+
       - name: Install cargo-zigbuild
-        run: |
-          pip install --user cargo-zigbuild ziglang
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        run: cargo install cargo-zigbuild
 
       - name: Build both targets
         run: |
