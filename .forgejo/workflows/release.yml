@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
+
+      - uses: https://github.com/Swatinem/rust-cache@v2
+
+      - name: Install cargo-zigbuild
+        run: |
+          pip install --user cargo-zigbuild ziglang
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build both targets
+        run: |
+          cargo zigbuild --release --target x86_64-unknown-linux-musl
+          cargo zigbuild --release --target aarch64-unknown-linux-musl
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p dist/release
+          cp target/x86_64-unknown-linux-musl/release/bunnynet_prometheus \
+             dist/release/bunnynet_prometheus-x86_64-unknown-linux-musl
+          cp target/aarch64-unknown-linux-musl/release/bunnynet_prometheus \
+             dist/release/bunnynet_prometheus-aarch64-unknown-linux-musl
+
+      - name: Publish release
+        uses: https://code.forgejo.org/actions/forgejo-release@v2
+        with:
+          direction: upload
+          url: ${{ github.server_url }}
+          release-dir: dist/release
