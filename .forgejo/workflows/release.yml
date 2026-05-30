@@ -20,7 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.tag || forge.ref_name }}
+
+      - name: Resolve built SHA
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
         uses: https://github.com/dtolnay/rust-toolchain@stable
@@ -52,6 +56,8 @@ jobs:
         uses: https://code.forgejo.org/actions/forgejo-release@v2
         with:
           direction: upload
-          url: ${{ github.server_url }}
-          tag: ${{ inputs.tag || github.ref_name }}
+          url: ${{ forge.server_url }}
+          tag: ${{ inputs.tag || forge.ref_name }}
           release-dir: dist/release
+          token: ${{ forge.token }}
+          sha: ${{ steps.sha.outputs.sha }}
