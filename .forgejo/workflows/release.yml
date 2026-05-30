@@ -11,9 +11,6 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
-
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -51,6 +48,7 @@ jobs:
              dist/release/bunnynet_prometheus-x86_64-unknown-linux-musl
           cp target/aarch64-unknown-linux-musl/release/bunnynet_prometheus \
              dist/release/bunnynet_prometheus-aarch64-unknown-linux-musl
+          cp /etc/ssl/certs/ca-certificates.crt dist/ca-certificates.crt
 
       - name: Publish release
         uses: https://code.forgejo.org/actions/forgejo-release@v2
@@ -61,3 +59,22 @@ jobs:
           release-dir: dist/release
           token: ${{ forge.token }}
           sha: ${{ steps.sha.outputs.sha }}
+          override: true
+
+      - name: Build and push image
+        env:
+          DOCKER_HOST: tcp://172.17.0.1:2375
+          TAG: ${{ inputs.tag || forge.ref_name }}
+          TOKEN: ${{ secrets.PACKAGE_RW_TOKEN }}
+          ACTOR: ${{ forge.actor }}
+          SERVER: ${{ forge.server_url }}
+          REPO: ${{ forge.repository }}
+        run: |
+          host="${SERVER#https://}"
+          image="$host/$(echo "$REPO" | tr '[:upper:]' '[:lower:]')"
+          echo "$TOKEN" | docker login "$host" -u "$ACTOR" --password-stdin
+          docker build \
+            --provenance=false --sbom=false \
+            --build-arg BIN=dist/release/bunnynet_prometheus-x86_64-unknown-linux-musl \
+            -t "$image:$TAG" .
+          docker push "$image:$TAG"
