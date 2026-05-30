@@ -1,6 +1,6 @@
 [package]
 name = "bunnynet_prometheus"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["Emanuel Claesson <emanuel@eclaesson.com>"]
 description = "Expose Bunny.net statistics as a scrapable prometheus endpoint."

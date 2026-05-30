@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use anyhow::Result;
-use chrono::NaiveDate;
+use chrono::{Days, NaiveDate};
 use serde::{Deserialize, de::DeserializeOwned};
 use tracing::debug;
 
@@ -533,6 +533,11 @@ impl ApiClient {
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<ShieldMetrics> {
+        let to_date = if from_date == to_date {
+            to_date.checked_add_days(Days::new(1)).unwrap_or(to_date)
+        } else {
+            to_date
+        };
         let from_date = from_date.format(DATE_FORMAT).to_string();
         let to_date = to_date.format(DATE_FORMAT).to_string();
 
