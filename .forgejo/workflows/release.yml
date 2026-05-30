@@ -63,6 +63,7 @@ jobs:
           release-dir: dist/release
           token: ${{ forge.token }}
           sha: ${{ steps.sha.outputs.sha }}
+          override: true
 
       - name: Build and push image
         env:
