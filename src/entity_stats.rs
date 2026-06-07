@@ -36,6 +36,7 @@ pub trait EntityType: Sized + Send + Sync + 'static {
         api_client: &'a ApiClient,
         entity: &'a Self::Entity,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, Self::DayData>;
 
     fn fetch_range<'a>(
@@ -48,7 +49,7 @@ pub trait EntityType: Sized + Send + Sync + 'static {
             let mut accumulator = Self::DayData::default();
             let mut cursor = from;
             while cursor <= to {
-                let day = Self::fetch_day(api_client, entity, cursor).await?;
+                let day = Self::fetch_day(api_client, entity, cursor, false).await?;
                 accumulator.accumulate(day);
                 cursor += chrono::TimeDelta::days(1);
             }
@@ -229,15 +230,27 @@ async fn update_entry<E: EntityType>(
     {
         let first = last + chrono::TimeDelta::days(1);
         let days = (yesterday - last).num_days();
-        info!(
-            collector = E::LOG_LABEL,
-            entity_id = %id,
-            entity_label = %entry.label,
-            from = %first,
-            to = %yesterday,
-            days,
-            "Backfilling missed days",
-        );
+
+        if days == 1 {
+            debug!(
+                collector = E::LOG_LABEL,
+                entity_id = %id,
+                entity_label = %entry.label,
+                date = %yesterday,
+                "Finalizing day rollover"
+            );
+        } else {
+            info!(
+                collector = E::LOG_LABEL,
+                entity_id = %id,
+                entity_label = %entry.label,
+                from = %first,
+                to = %yesterday,
+                days,
+                "Backfilling missed days",
+            );
+        }
+
         let backfill = E::fetch_range(api_client, entity, first, yesterday).await?;
         entry.last_complete_day_state.accumulate(backfill);
         entry.last_complete_day = Some(yesterday);
@@ -253,20 +266,22 @@ async fn update_entry<E: EntityType>(
         date = %today,
         "Fetching day (current)",
     );
-    let snapshot = E::fetch_day(api_client, entity, today).await?;
+    let snapshot = E::fetch_day(api_client, entity, today, true).await?;
     entry.current_day_state.merge_latest(snapshot);
 
     Ok(())
 }
 
-pub fn find_chart_value_for_date<V: Copy>(
+pub fn find_chart_value_for_date<V: Copy + Default>(
     chart: &HashMap<String, V>,
     date: NaiveDate,
+    allow_missing: bool,
 ) -> Result<V> {
     let date_str = date.format(DATE_FORMAT).to_string();
     let mut iter = chart.iter();
     match (iter.next(), iter.next()) {
         (Some((key, value)), None) if key.starts_with(&date_str) => Ok(*value),
+        (None, None) if allow_missing => Ok(V::default()),
         _ => bail!(
             "Expected exactly one entry starting with {date_str}, got {} entries",
             chart.len()
@@ -300,16 +315,19 @@ where
         .sum()
 }
 
-pub fn find_chart_value_for_date_lenient<V: Copy>(
+pub fn find_chart_value_for_date_lenient<V: Copy + Default>(
     chart: &HashMap<String, V>,
     date: NaiveDate,
+    allow_missing: bool,
 ) -> Result<V> {
     let date_str = date.format(DATE_FORMAT).to_string();
-    chart
-        .iter()
-        .find(|(key, _)| key.starts_with(&date_str))
-        .map(|(_, value)| *value)
-        .ok_or_else(|| anyhow::anyhow!("No entry starting with {date_str} found in chart"))
+    match chart.iter().find(|(key, _)| key.starts_with(&date_str)) {
+        Some((_, value)) => Ok(*value),
+        None if allow_missing => Ok(V::default()),
+        None => Err(anyhow::anyhow!(
+            "No entry starting with {date_str} found in chart"
+        )),
+    }
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -366,14 +384,14 @@ mod tests {
         let mut chart = HashMap::new();
         chart.insert("2026-05-24".to_string(), 7u64);
         assert_eq!(
-            find_chart_value_for_date(&chart, date(2026, 5, 24)).unwrap(),
+            find_chart_value_for_date(&chart, date(2026, 5, 24), false).unwrap(),
             7
         );
 
         let mut ts = HashMap::new();
         ts.insert("2026-05-24T00:00:00".to_string(), 9u64);
         assert_eq!(
-            find_chart_value_for_date(&ts, date(2026, 5, 24)).unwrap(),
+            find_chart_value_for_date(&ts, date(2026, 5, 24), false).unwrap(),
             9
         );
     }
@@ -381,16 +399,41 @@ mod tests {
     #[test]
     fn find_chart_value_for_date_errors_unless_exactly_one_matching_entry() {
         let empty: HashMap<String, u64> = HashMap::new();
-        assert!(find_chart_value_for_date(&empty, date(2026, 5, 24)).is_err());
+        assert!(find_chart_value_for_date(&empty, date(2026, 5, 24), false).is_err());
 
         let mut wrong = HashMap::new();
         wrong.insert("2026-05-25".to_string(), 1u64);
-        assert!(find_chart_value_for_date(&wrong, date(2026, 5, 24)).is_err());
+        assert!(find_chart_value_for_date(&wrong, date(2026, 5, 24), false).is_err());
 
         let mut multi = HashMap::new();
         multi.insert("2026-05-24".to_string(), 1u64);
         multi.insert("2026-05-25".to_string(), 2u64);
-        assert!(find_chart_value_for_date(&multi, date(2026, 5, 24)).is_err());
+        assert!(find_chart_value_for_date(&multi, date(2026, 5, 24), false).is_err());
+    }
+
+    #[test]
+    fn find_chart_value_for_date_allow_missing_returns_zero_only_when_empty() {
+        let empty: HashMap<String, u64> = HashMap::new();
+        assert_eq!(
+            find_chart_value_for_date(&empty, date(2026, 5, 24), true).unwrap(),
+            0
+        );
+
+        let mut present = HashMap::new();
+        present.insert("2026-05-24".to_string(), 7u64);
+        assert_eq!(
+            find_chart_value_for_date(&present, date(2026, 5, 24), true).unwrap(),
+            7
+        );
+
+        let mut wrong = HashMap::new();
+        wrong.insert("2026-05-25".to_string(), 1u64);
+        assert!(find_chart_value_for_date(&wrong, date(2026, 5, 24), true).is_err());
+
+        let mut multi = HashMap::new();
+        multi.insert("2026-05-24".to_string(), 1u64);
+        multi.insert("2026-05-25".to_string(), 2u64);
+        assert!(find_chart_value_for_date(&multi, date(2026, 5, 24), true).is_err());
     }
 
     #[test]
@@ -399,13 +442,31 @@ mod tests {
         chart.insert("2026-05-24T00:00:00".to_string(), 11u64);
         chart.insert("2026-05-25T00:00:00".to_string(), 22u64);
         assert_eq!(
-            find_chart_value_for_date_lenient(&chart, date(2026, 5, 24)).unwrap(),
+            find_chart_value_for_date_lenient(&chart, date(2026, 5, 24), false).unwrap(),
             11
         );
 
         let mut wrong_position = HashMap::new();
         wrong_position.insert("xyz-2026-05-24".to_string(), 1u64);
-        assert!(find_chart_value_for_date_lenient(&wrong_position, date(2026, 5, 24)).is_err());
+        assert!(
+            find_chart_value_for_date_lenient(&wrong_position, date(2026, 5, 24), false).is_err()
+        );
+    }
+
+    #[test]
+    fn find_chart_value_for_date_lenient_allow_missing_returns_zero_when_not_found() {
+        let mut chart = HashMap::new();
+        chart.insert("2026-05-25T00:00:00".to_string(), 22u64);
+        assert_eq!(
+            find_chart_value_for_date_lenient(&chart, date(2026, 5, 24), true).unwrap(),
+            0
+        );
+        assert!(find_chart_value_for_date_lenient(&chart, date(2026, 5, 24), false).is_err());
+
+        assert_eq!(
+            find_chart_value_for_date_lenient(&chart, date(2026, 5, 25), true).unwrap(),
+            22
+        );
     }
 
     #[test]
@@ -456,7 +517,7 @@ mod tests {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum Call {
-        FetchDay(NaiveDate),
+        FetchDay(NaiveDate, bool),
         FetchRange(NaiveDate, NaiveDate),
     }
 
@@ -508,9 +569,13 @@ mod tests {
             _: &'a ApiClient,
             e: &'a Self::Entity,
             date: NaiveDate,
+            allow_missing: bool,
         ) -> FetchFuture<'a, Self::DayData> {
             Box::pin(async move {
-                e.calls.lock().unwrap().push(Call::FetchDay(date));
+                e.calls
+                    .lock()
+                    .unwrap()
+                    .push(Call::FetchDay(date, allow_missing));
                 if e.error_on_day == Some(date) {
                     bail!("fake error for {date}");
                 }
@@ -559,9 +624,13 @@ mod tests {
             _: &'a ApiClient,
             e: &'a Self::Entity,
             date: NaiveDate,
+            allow_missing: bool,
         ) -> FetchFuture<'a, Self::DayData> {
             Box::pin(async move {
-                e.calls.lock().unwrap().push(Call::FetchDay(date));
+                e.calls
+                    .lock()
+                    .unwrap()
+                    .push(Call::FetchDay(date, allow_missing));
                 Ok(FakeDayData {
                     value: e.day_values.get(&date).copied().unwrap_or(0),
                 })
@@ -593,7 +662,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(entity.calls(), vec![Call::FetchDay(today)]);
+        assert_eq!(entity.calls(), vec![Call::FetchDay(today, true)]);
         assert_eq!(entry.last_complete_day, Some(yesterday));
         assert_eq!(entry.last_complete_day_state.value, 0);
         assert_eq!(entry.current_day_state.value, 10);
@@ -619,7 +688,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(entity.calls(), vec![Call::FetchDay(today)]);
+        assert_eq!(entity.calls(), vec![Call::FetchDay(today, true)]);
         assert_eq!(entry.last_complete_day, Some(yesterday));
         assert_eq!(entry.last_complete_day_state.value, 100);
         assert_eq!(entry.current_day_state.value, 7);
@@ -651,7 +720,7 @@ mod tests {
             entity.calls(),
             vec![
                 Call::FetchRange(date(2026, 5, 21), yesterday),
-                Call::FetchDay(today),
+                Call::FetchDay(today, true),
             ]
         );
         assert_eq!(entry.last_complete_day, Some(yesterday));
@@ -685,10 +754,10 @@ mod tests {
         assert_eq!(
             entity.calls(),
             vec![
-                Call::FetchDay(date(2026, 5, 23)),
-                Call::FetchDay(date(2026, 5, 24)),
-                Call::FetchDay(date(2026, 5, 25)),
-                Call::FetchDay(today),
+                Call::FetchDay(date(2026, 5, 23), false),
+                Call::FetchDay(date(2026, 5, 24), false),
+                Call::FetchDay(date(2026, 5, 25), false),
+                Call::FetchDay(today, true),
             ]
         );
         assert_eq!(entry.last_complete_day, Some(yesterday));

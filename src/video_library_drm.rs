@@ -37,6 +37,7 @@ impl EntityType for VideoLibraryDrmKind {
         api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, VideoLibraryDrmDayData> {
         Box::pin(async move {
             let statistics = api_client
@@ -44,7 +45,7 @@ impl EntityType for VideoLibraryDrmKind {
                 .await?;
 
             let licenses_issued = f64_to_u64(
-                find_chart_value_for_date(&statistics.licenses_issued_chart, date)
+                find_chart_value_for_date(&statistics.licenses_issued_chart, date, allow_missing)
                     .context("licenses_issued")?,
             );
 

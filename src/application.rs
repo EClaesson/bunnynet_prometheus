@@ -38,35 +38,48 @@ impl EntityType for ApplicationKind {
         api_client: &'a ApiClient,
         application: &'a Application,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, ApplicationDayData> {
         Box::pin(async move {
             let statistics = api_client
                 .get_application_stats(&application.id, date, date)
                 .await?;
 
-            let target_latency = find_chart_value_for_date(&statistics.target_latency_chart, date)
-                .context("target_latency")?;
-            let active_regions = find_chart_value_for_date(&statistics.active_regions_chart, date)
-                .context("active_regions")?
-                .unwrap_or(0.0);
-            let latency =
-                find_chart_value_for_date(&statistics.latency_chart, date).context("latency")?;
-            let instances = find_chart_value_for_date(&statistics.instances_chart, date)
-                .context("instances")?
-                .unwrap_or(0.0);
-            let cpu_usage = find_chart_value_for_date(&statistics.cpu_usage_chart, date)
-                .context("cpu_usage")?;
-            let ram_usage = find_chart_value_for_date(&statistics.ram_usage_chart, date)
-                .context("ram_usage")?;
+            let target_latency =
+                find_chart_value_for_date(&statistics.target_latency_chart, date, allow_missing)
+                    .context("target_latency")?;
+            let active_regions =
+                find_chart_value_for_date(&statistics.active_regions_chart, date, allow_missing)
+                    .context("active_regions")?
+                    .unwrap_or(0.0);
+            let latency = find_chart_value_for_date(&statistics.latency_chart, date, allow_missing)
+                .context("latency")?;
+            let instances =
+                find_chart_value_for_date(&statistics.instances_chart, date, allow_missing)
+                    .context("instances")?
+                    .unwrap_or(0.0);
+            let cpu_usage =
+                find_chart_value_for_date(&statistics.cpu_usage_chart, date, allow_missing)
+                    .context("cpu_usage")?;
+            let ram_usage =
+                find_chart_value_for_date(&statistics.ram_usage_chart, date, allow_missing)
+                    .context("ram_usage")?;
             let traffic = f64_to_u64(
-                find_chart_value_for_date(&statistics.traffic_chart, date).context("traffic")?,
+                find_chart_value_for_date(&statistics.traffic_chart, date, allow_missing)
+                    .context("traffic")?,
             );
-            let volume_usage =
-                extract_volume_chart_for_date(&statistics.volumes_split_usage_chart, date)
-                    .context("volume_usage")?;
-            let volume_capacity =
-                extract_volume_chart_for_date(&statistics.volumes_split_capacity_chart, date)
-                    .context("volume_capacity")?;
+            let volume_usage = extract_volume_chart_for_date(
+                &statistics.volumes_split_usage_chart,
+                date,
+                allow_missing,
+            )
+            .context("volume_usage")?;
+            let volume_capacity = extract_volume_chart_for_date(
+                &statistics.volumes_split_capacity_chart,
+                date,
+                allow_missing,
+            )
+            .context("volume_capacity")?;
 
             Ok(ApplicationDayData {
                 target_latency,
@@ -141,10 +154,11 @@ impl EntityType for ApplicationKind {
 fn extract_volume_chart_for_date(
     chart: &ApplicationVolumeChart,
     date: NaiveDate,
+    allow_missing: bool,
 ) -> Result<HashMap<String, f64>> {
     let mut result = HashMap::with_capacity(chart.len());
     for (volume, time_series) in chart {
-        let value = find_chart_value_for_date(time_series, date)
+        let value = find_chart_value_for_date(time_series, date, allow_missing)
             .with_context(|| format!("volume {volume}"))?;
         result.insert(volume.clone(), value);
     }
@@ -271,7 +285,7 @@ mod tests {
             ("data", &[("2026-05-24", 12.5)]),
             ("logs", &[("2026-05-24", 4.0)]),
         ]);
-        let result = extract_volume_chart_for_date(&chart, date(2026, 5, 24)).unwrap();
+        let result = extract_volume_chart_for_date(&chart, date(2026, 5, 24), false).unwrap();
         assert_eq!(result.get("data"), Some(&12.5));
         assert_eq!(result.get("logs"), Some(&4.0));
 
@@ -279,6 +293,14 @@ mod tests {
             ("data", &[("2026-05-24", 12.5)]),
             ("logs", &[("2026-05-25", 4.0)]),
         ]);
-        assert!(extract_volume_chart_for_date(&missing, date(2026, 5, 24)).is_err());
+        assert!(extract_volume_chart_for_date(&missing, date(2026, 5, 24), false).is_err());
+    }
+
+    #[test]
+    fn extract_volume_chart_for_date_allow_missing_returns_zero_for_empty_series() {
+        let chart = volume_chart(&[("data", &[]), ("logs", &[("2026-05-24", 4.0)])]);
+        let result = extract_volume_chart_for_date(&chart, date(2026, 5, 24), true).unwrap();
+        assert_eq!(result.get("data"), Some(&0.0));
+        assert_eq!(result.get("logs"), Some(&4.0));
     }
 }

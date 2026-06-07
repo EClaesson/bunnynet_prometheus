@@ -137,10 +137,7 @@ async fn start_poller_loop(
         })
         .collect::<Result<_>>()?;
 
-    let enabled: Vec<&str> = deduped
-        .iter()
-        .map(|collector| collector.name())
-        .collect();
+    let enabled: Vec<&str> = deduped.iter().map(|collector| collector.name()).collect();
     info!(
         poll_interval_seconds = poll_interval.as_secs(),
         api_concurrency,

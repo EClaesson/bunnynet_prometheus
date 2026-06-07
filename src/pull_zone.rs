@@ -37,42 +37,59 @@ impl EntityType for PullZoneKind {
         api_client: &'a ApiClient,
         zone: &'a PullZone,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, PullZoneDayData> {
         Box::pin(async move {
             let statistics = api_client.get_pull_zone_stats(zone.id, date, date).await?;
 
-            let origin_response_time =
-                find_chart_value_for_date(&statistics.origin_response_time_chart, date)
-                    .context("origin_response_time")?;
-            let cache_hit_rate = find_chart_value_for_date(&statistics.cache_hit_rate_chart, date)
-                .context("cache_hit_rate")?;
-            let bandwidth_used = find_chart_value_for_date(&statistics.bandwidth_used_chart, date)
-                .context("bandwidth_used")?;
+            let origin_response_time = find_chart_value_for_date(
+                &statistics.origin_response_time_chart,
+                date,
+                allow_missing,
+            )
+            .context("origin_response_time")?;
+            let cache_hit_rate =
+                find_chart_value_for_date(&statistics.cache_hit_rate_chart, date, allow_missing)
+                    .context("cache_hit_rate")?;
+            let bandwidth_used =
+                find_chart_value_for_date(&statistics.bandwidth_used_chart, date, allow_missing)
+                    .context("bandwidth_used")?;
             let bandwidth_cached =
-                find_chart_value_for_date(&statistics.bandwidth_cached_chart, date)
+                find_chart_value_for_date(&statistics.bandwidth_cached_chart, date, allow_missing)
                     .context("bandwidth_cached")?;
             let requests_served =
-                find_chart_value_for_date(&statistics.requests_served_chart, date)
+                find_chart_value_for_date(&statistics.requests_served_chart, date, allow_missing)
                     .context("requests_served")?;
-            let pull_requests_pulled =
-                find_chart_value_for_date(&statistics.pull_requests_pulled_chart, date)
-                    .context("pull_requests_pulled")?;
-            let origin_shield_bandwidth_used =
-                find_chart_value_for_date(&statistics.origin_shield_bandwidth_used_chart, date)
-                    .context("origin_shield_bandwidth_used")?;
+            let pull_requests_pulled = find_chart_value_for_date(
+                &statistics.pull_requests_pulled_chart,
+                date,
+                allow_missing,
+            )
+            .context("pull_requests_pulled")?;
+            let origin_shield_bandwidth_used = find_chart_value_for_date(
+                &statistics.origin_shield_bandwidth_used_chart,
+                date,
+                allow_missing,
+            )
+            .context("origin_shield_bandwidth_used")?;
             let origin_shield_internal_bandwidth_used = find_chart_value_for_date(
                 &statistics.origin_shield_internal_bandwidth_used_chart,
                 date,
+                allow_missing,
             )
             .context("origin_shield_internal_bandwidth_used")?;
-            let origin_traffic = find_chart_value_for_date(&statistics.origin_traffic_chart, date)
-                .context("origin_traffic")?;
-            let errors_3xx = find_chart_value_for_date(&statistics.errors_3xx_chart, date)
-                .context("errors_3xx")?;
-            let errors_4xx = find_chart_value_for_date(&statistics.errors_4xx_chart, date)
-                .context("errors_4xx")?;
-            let errors_5xx = find_chart_value_for_date(&statistics.errors_5xx_chart, date)
-                .context("errors_5xx")?;
+            let origin_traffic =
+                find_chart_value_for_date(&statistics.origin_traffic_chart, date, allow_missing)
+                    .context("origin_traffic")?;
+            let errors_3xx =
+                find_chart_value_for_date(&statistics.errors_3xx_chart, date, allow_missing)
+                    .context("errors_3xx")?;
+            let errors_4xx =
+                find_chart_value_for_date(&statistics.errors_4xx_chart, date, allow_missing)
+                    .context("errors_4xx")?;
+            let errors_5xx =
+                find_chart_value_for_date(&statistics.errors_5xx_chart, date, allow_missing)
+                    .context("errors_5xx")?;
 
             Ok(PullZoneDayData {
                 origin_response_time,

@@ -37,24 +37,37 @@ impl EntityType for PullZoneOptimizerKind {
         api_client: &'a ApiClient,
         zone: &'a PullZone,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, PullZoneOptimizerDayData> {
         Box::pin(async move {
             let statistics = api_client
                 .get_pull_zone_optimizer_stats(zone.id, date, date)
                 .await?;
 
-            let requests_optimized =
-                chart_value_or_default(statistics.requests_optimized_chart.as_ref(), date)
-                    .context("requests_optimized")?;
-            let traffic_saved =
-                chart_value_or_default(statistics.traffic_saved_chart.as_ref(), date)
-                    .context("traffic_saved")?;
-            let average_compression =
-                chart_value_or_default(statistics.average_compression_chart.as_ref(), date)
-                    .context("average_compression")?;
-            let average_processing_time =
-                chart_value_or_default(statistics.average_processing_time_chart.as_ref(), date)
-                    .context("average_processing_time")?;
+            let requests_optimized = chart_value_or_default(
+                statistics.requests_optimized_chart.as_ref(),
+                date,
+                allow_missing,
+            )
+            .context("requests_optimized")?;
+            let traffic_saved = chart_value_or_default(
+                statistics.traffic_saved_chart.as_ref(),
+                date,
+                allow_missing,
+            )
+            .context("traffic_saved")?;
+            let average_compression = chart_value_or_default(
+                statistics.average_compression_chart.as_ref(),
+                date,
+                allow_missing,
+            )
+            .context("average_compression")?;
+            let average_processing_time = chart_value_or_default(
+                statistics.average_processing_time_chart.as_ref(),
+                date,
+                allow_missing,
+            )
+            .context("average_processing_time")?;
 
             Ok(PullZoneOptimizerDayData {
                 requests_optimized,
@@ -121,10 +134,11 @@ impl EntityType for PullZoneOptimizerKind {
 fn chart_value_or_default<V: Copy + Default>(
     chart: Option<&HashMap<String, V>>,
     date: NaiveDate,
+    allow_missing: bool,
 ) -> Result<V> {
     chart.map_or_else(
         || Ok(V::default()),
-        |chart_inner| find_chart_value_for_date(chart_inner, date),
+        |chart_inner| find_chart_value_for_date(chart_inner, date, allow_missing),
     )
 }
 
@@ -207,18 +221,28 @@ mod tests {
 
     #[test]
     fn chart_value_or_default_returns_default_for_none_else_delegates() {
-        let absent: u64 = chart_value_or_default(None, date(2026, 5, 24)).unwrap();
+        let absent: u64 = chart_value_or_default(None, date(2026, 5, 24), false).unwrap();
         assert_eq!(absent, 0);
 
         let mut chart = HashMap::new();
         chart.insert("2026-05-24".to_string(), 42u64);
         assert_eq!(
-            chart_value_or_default(Some(&chart), date(2026, 5, 24)).unwrap(),
+            chart_value_or_default(Some(&chart), date(2026, 5, 24), false).unwrap(),
             42
         );
 
         let mut wrong_date = HashMap::new();
         wrong_date.insert("2026-05-25".to_string(), 42u64);
-        assert!(chart_value_or_default(Some(&wrong_date), date(2026, 5, 24)).is_err());
+        assert!(chart_value_or_default(Some(&wrong_date), date(2026, 5, 24), false).is_err());
+    }
+
+    #[test]
+    fn chart_value_or_default_allow_missing_returns_zero_for_empty_chart() {
+        let empty: HashMap<String, u64> = HashMap::new();
+        assert_eq!(
+            chart_value_or_default(Some(&empty), date(2026, 5, 24), true).unwrap(),
+            0
+        );
+        assert!(chart_value_or_default(Some(&empty), date(2026, 5, 24), false).is_err());
     }
 }

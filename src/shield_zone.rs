@@ -49,6 +49,7 @@ impl EntityType for ShieldZoneKind {
         api_client: &'a ApiClient,
         zone: &'a ShieldZone,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, ShieldZoneDayData> {
         Box::pin(async move {
             let metrics = api_client
@@ -58,7 +59,8 @@ impl EntityType for ShieldZoneKind {
             let categories = category_refs(&metrics)
                 .into_iter()
                 .map(|(name, category)| {
-                    let actions = extract_category_for_date(category, date).context(name)?;
+                    let actions =
+                        extract_category_for_date(category, date, allow_missing).context(name)?;
                     Ok::<_, anyhow::Error>((name.to_string(), actions))
                 })
                 .collect::<Result<_>>()?;
@@ -156,10 +158,11 @@ const fn category_refs(metrics: &ShieldMetrics) -> [(&'static str, &ShieldCatego
 fn extract_category_for_date(
     cat: &ShieldCategoryMetrics,
     date: NaiveDate,
+    allow_missing: bool,
 ) -> Result<HashMap<String, u64>> {
     let mut actions = HashMap::with_capacity(cat.metrics.len());
     for (action, chart) in &cat.metrics {
-        let value = find_chart_value_for_date_lenient(chart, date)
+        let value = find_chart_value_for_date_lenient(chart, date, allow_missing)
             .with_context(|| format!("action {action}"))?;
         actions.insert(action.clone(), value);
     }
@@ -309,7 +312,7 @@ mod tests {
             ("block", &[("2026-05-24T00:00:00", 7)]),
             ("allow", &[("2026-05-24T00:00:00", 12)]),
         ]);
-        let result = extract_category_for_date(&cat, date(2026, 5, 24)).unwrap();
+        let result = extract_category_for_date(&cat, date(2026, 5, 24), false).unwrap();
         assert_eq!(result.get("block"), Some(&7));
         assert_eq!(result.get("allow"), Some(&12));
 
@@ -317,7 +320,18 @@ mod tests {
             ("block", &[("2026-05-24T00:00:00", 7)]),
             ("allow", &[("2026-05-25T00:00:00", 12)]),
         ]);
-        assert!(extract_category_for_date(&missing, date(2026, 5, 24)).is_err());
+        assert!(extract_category_for_date(&missing, date(2026, 5, 24), false).is_err());
+    }
+
+    #[test]
+    fn extract_category_for_date_allow_missing_treats_missing_action_as_zero() {
+        let missing = shield_category(&[
+            ("block", &[("2026-05-24T00:00:00", 7)]),
+            ("allow", &[("2026-05-25T00:00:00", 12)]),
+        ]);
+        let result = extract_category_for_date(&missing, date(2026, 5, 24), true).unwrap();
+        assert_eq!(result.get("block"), Some(&7));
+        assert_eq!(result.get("allow"), Some(&0));
     }
 
     #[test]

@@ -37,20 +37,21 @@ impl EntityType for EdgeScriptKind {
         client: &'a ApiClient,
         script: &'a EdgeScript,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, EdgeScriptDayData> {
         Box::pin(async move {
             let statistics = client.get_edge_script_stats(script.id, date, date).await?;
 
             let requests_served = f64_to_u64(
-                find_chart_value_for_date(&statistics.requests_served_chart, date)
+                find_chart_value_for_date(&statistics.requests_served_chart, date, allow_missing)
                     .context("requests_served")?,
             );
             let total_cpu_time = f64_to_u64(
-                find_chart_value_for_date(&statistics.total_cpu_time_chart, date)
+                find_chart_value_for_date(&statistics.total_cpu_time_chart, date, allow_missing)
                     .context("total_cpu_time")?,
             );
             let average_cpu_time =
-                find_chart_value_for_date(&statistics.average_cpu_time_chart, date)
+                find_chart_value_for_date(&statistics.average_cpu_time_chart, date, allow_missing)
                     .context("average_cpu_time")?;
 
             Ok(EdgeScriptDayData {

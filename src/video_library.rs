@@ -37,16 +37,18 @@ impl EntityType for VideoLibraryKind {
         api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, VideoLibraryDayData> {
         Box::pin(async move {
             let statistics = api_client
                 .get_video_library_stats(library.id, Some(&library.read_only_api_key), date, date)
                 .await?;
 
-            let views =
-                find_chart_value_for_date(&statistics.views_chart, date).context("views")?;
-            let watch_time = find_chart_value_for_date(&statistics.watch_time_chart, date)
-                .context("watch_time")?;
+            let views = find_chart_value_for_date(&statistics.views_chart, date, allow_missing)
+                .context("views")?;
+            let watch_time =
+                find_chart_value_for_date(&statistics.watch_time_chart, date, allow_missing)
+                    .context("watch_time")?;
 
             Ok(VideoLibraryDayData {
                 views,

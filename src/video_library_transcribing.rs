@@ -37,6 +37,7 @@ impl EntityType for VideoLibraryTranscribingKind {
         api_client: &'a ApiClient,
         library: &'a VideoLibrary,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, VideoLibraryTranscribingDayData> {
         Box::pin(async move {
             let statistics = api_client
@@ -44,8 +45,12 @@ impl EntityType for VideoLibraryTranscribingKind {
                 .await?;
 
             let transcription_seconds = f64_to_u64(
-                find_chart_value_for_date(&statistics.transcription_seconds_chart, date)
-                    .context("transcription_seconds")?,
+                find_chart_value_for_date(
+                    &statistics.transcription_seconds_chart,
+                    date,
+                    allow_missing,
+                )
+                .context("transcription_seconds")?,
             );
 
             Ok(VideoLibraryTranscribingDayData {

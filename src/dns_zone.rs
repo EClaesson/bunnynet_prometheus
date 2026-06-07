@@ -37,17 +37,26 @@ impl EntityType for DnsZoneKind {
         api_client: &'a ApiClient,
         zone: &'a DnsZone,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, DnsDayData> {
         Box::pin(async move {
             let statistics = api_client.get_dns_zone_stats(zone.id, date, date).await?;
 
             let normal_queries_served = f64_to_u64(
-                find_chart_value_for_date(&statistics.normal_queries_served_chart, date)
-                    .context("normal_queries_served")?,
+                find_chart_value_for_date(
+                    &statistics.normal_queries_served_chart,
+                    date,
+                    allow_missing,
+                )
+                .context("normal_queries_served")?,
             );
             let smart_queries_served = f64_to_u64(
-                find_chart_value_for_date(&statistics.smart_queries_served_chart, date)
-                    .context("smart_queries_served")?,
+                find_chart_value_for_date(
+                    &statistics.smart_queries_served_chart,
+                    date,
+                    allow_missing,
+                )
+                .context("smart_queries_served")?,
             );
 
             let mut queries_served_per_type = QueriesByTypeChart::new();

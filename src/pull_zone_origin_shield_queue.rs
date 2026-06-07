@@ -36,17 +36,21 @@ impl EntityType for PullZoneOriginShieldQueueKind {
         client: &'a ApiClient,
         zone: &'a PullZone,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, PullZoneOriginShieldQueueDayData> {
         Box::pin(async move {
             let statistics = client
                 .get_pull_zone_origin_shield_queue_stats(zone.id, date, date)
                 .await?;
 
-            let concurrent_requests =
-                find_chart_value_for_date(&statistics.concurrent_requests_chart, date)
-                    .context("concurrent_requests")?;
+            let concurrent_requests = find_chart_value_for_date(
+                &statistics.concurrent_requests_chart,
+                date,
+                allow_missing,
+            )
+            .context("concurrent_requests")?;
             let queued_requests =
-                find_chart_value_for_date(&statistics.queued_requests_chart, date)
+                find_chart_value_for_date(&statistics.queued_requests_chart, date, allow_missing)
                     .context("queued_requests")?;
 
             Ok(PullZoneOriginShieldQueueDayData {

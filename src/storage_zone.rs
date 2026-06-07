@@ -36,16 +36,19 @@ impl EntityType for StorageZoneKind {
         api_client: &'a ApiClient,
         zone: &'a StorageZone,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, StorageDayData> {
         Box::pin(async move {
             let statistics = api_client
                 .get_storage_zone_stats(zone.id, date, date)
                 .await?;
 
-            let storage_used = find_chart_value_for_date(&statistics.storage_used_chart, date)
-                .context("storage_used")?;
-            let file_count = find_chart_value_for_date(&statistics.file_count_chart, date)
-                .context("file_count")?;
+            let storage_used =
+                find_chart_value_for_date(&statistics.storage_used_chart, date, allow_missing)
+                    .context("storage_used")?;
+            let file_count =
+                find_chart_value_for_date(&statistics.file_count_chart, date, allow_missing)
+                    .context("file_count")?;
 
             Ok(StorageDayData {
                 storage_used,

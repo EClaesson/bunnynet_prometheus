@@ -36,6 +36,7 @@ impl EntityType for PullZoneSafeHopKind {
         api_client: &'a ApiClient,
         zone: &'a PullZone,
         date: NaiveDate,
+        allow_missing: bool,
     ) -> FetchFuture<'a, PullZoneSafeHopDayData> {
         Box::pin(async move {
             let statistics = api_client
@@ -43,10 +44,11 @@ impl EntityType for PullZoneSafeHopKind {
                 .await?;
 
             let requests_retried =
-                find_chart_value_for_date(&statistics.requests_retried_chart, date)
+                find_chart_value_for_date(&statistics.requests_retried_chart, date, allow_missing)
                     .context("requests_retried")?;
-            let requests_saved = find_chart_value_for_date(&statistics.requests_saved_chart, date)
-                .context("requests_saved")?;
+            let requests_saved =
+                find_chart_value_for_date(&statistics.requests_saved_chart, date, allow_missing)
+                    .context("requests_saved")?;
 
             Ok(PullZoneSafeHopDayData {
                 requests_retried,
