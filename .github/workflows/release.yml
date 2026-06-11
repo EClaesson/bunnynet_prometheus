@@ -149,6 +149,10 @@ jobs:
     needs: image
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
       - uses: actions/download-artifact@v4
         with:
           path: ${{ runner.temp }}/digests
@@ -172,14 +176,37 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.ref_name }}
             type=raw,value=latest
 
-      - name: Create and push manifest list
+      - name: Collect source digests
+        id: sources
         working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/bunnynet_prometheus
         run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ vars.DOCKERHUB_USERNAME }}/bunnynet_prometheus@sha256:%s ' *)
+          {
+            echo 'sources<<EOF'
+            for digest in *; do
+              echo "$IMAGE@sha256:$digest"
+            done
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create and push manifest list
+        uses: int128/docker-manifest-create-action@v2
+        with:
+          tags: ${{ steps.meta.outputs.tags }}
+          sources: ${{ steps.sources.outputs.sources }}
+          index-annotations: ${{ steps.meta.outputs.labels }}
 
       - name: Inspect image
         run: |
           docker buildx imagetools inspect \
             ${{ vars.DOCKERHUB_USERNAME }}/bunnynet_prometheus:${{ steps.meta.outputs.version }}
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_USERNAME }}/bunnynet_prometheus
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ./README.md
