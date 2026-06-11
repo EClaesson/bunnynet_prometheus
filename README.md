@@ -11,7 +11,7 @@ Counter values are persisted to disk between poll cycles, so restarts don't rese
 
 ## Installation
 
-_bunnynet_prometheus_ can be compiled with cargo or you can download prebuilt [releases](https://github.com/EClaesson/bunnynet_prometheus/releases).
+_bunnynet_prometheus_ can be compiled with cargo or you can download prebuilt [releases](https://github.com/EClaesson/bunnynet_prometheus/releases) or [Docker images](https://hub.docker.com/r/eclaesson/bunnynet_prometheus).
 
 It is also available on [crates.io](https://crates.io/crates/bunnynet_prometheus):
 
@@ -63,6 +63,73 @@ Load the access key from a file, poll the dns_zone and storage_zone collectors a
 
 ```
 bunnynet_prometheus -f ~/.bunnynet.key -c dns_zone,storage_zone
+```
+
+## Podman Quadlet Example
+
+```ini
+[Unit]
+Description=Bunny.net Prometheus exporter
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=eclaesson/bunnynet_prometheus:latest
+ContainerName=bunnynet_prometheus
+
+Network=internal.network
+PublishPort=127.0.0.1:9000:9000
+
+Volume=bunnynet_prometheus_data.volume:/data:Z
+
+Secret=bunny_api_key,type=env,target=BUNNYNET_ACCESS_KEY
+
+Exec=--state-dir /data --collectors application,dns_zone,edge_script,storage_zone,video_library,video_library_transcribing,video_library_drm,pull_zone,pull_zone_optimizer,pull_zone_origin_shield_queue,pull_zone_safehop,shield_zone
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=90
+
+[Install]
+WantedBy=default.target
+```
+
+## Docker Compose Example
+
+The API key is provided as a Docker secret, read from a `bunny_api_key` file next to the compose file, and consumed via `--access-key-file`.
+
+```yaml
+services:
+  bunnynet_prometheus:
+    image: eclaesson/bunnynet_prometheus:latest
+    container_name: bunnynet_prometheus
+    restart: always
+    networks:
+      - internal
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - bunnynet_prometheus_data:/data
+    secrets:
+      - bunny_api_key
+    command:
+      - --access-key-file
+      - /run/secrets/bunny_api_key
+      - --state-dir
+      - /data
+      - --collectors
+      - application,dns_zone,edge_script,storage_zone,video_library,video_library_transcribing,video_library_drm,pull_zone,pull_zone_optimizer,pull_zone_origin_shield_queue,pull_zone_safehop,shield_zone
+
+networks:
+  internal:
+
+volumes:
+  bunnynet_prometheus_data:
+
+secrets:
+  bunny_api_key:
+    file: ./bunny_api_key
 ```
 
 ## Internal metrics
